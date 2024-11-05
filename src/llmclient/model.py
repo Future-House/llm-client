@@ -168,8 +168,6 @@ class LLMModel(BaseModel):
             result.completion_count = self.count_tokens(output)
         result.text = output or ""
         result.seconds_to_last_token = asyncio.get_running_loop().time() - start_clock
-        if result.seconds_to_first_token == 0:
-                result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
         if self.llm_result_callback:
             if is_coroutine_callable(self.llm_result_callback):
                 await self.llm_result_callback(result)  # type: ignore[misc]
@@ -178,13 +176,16 @@ class LLMModel(BaseModel):
         return result
     
     async def add_chunk_text(self, result, async_callbacks, sync_callbacks, chunk, text_result, start_clock, name):
-        if chunk.text:
-            if result.seconds_to_first_token == 0:
-                result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
-            text_result.append(chunk.text)
-            await do_callbacks(
-                async_callbacks, sync_callbacks, chunk.text, name
-            )
+        if not chunk.text:
+            return
+        
+        if result.seconds_to_first_token == 0:
+            result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
+
+        text_result.append(chunk.text)
+        await do_callbacks(
+            async_callbacks, sync_callbacks, chunk.text, name
+        )
 
     async def _run_chat(
         self,
@@ -238,7 +239,7 @@ class LLMModel(BaseModel):
             completion = await self.achat_iter(messages)  # type: ignore[misc]
             text_result = []
             async for chunk in completion:
-                self.add_chunk_text(result, async_callbacks, sync_callbacks, chunk, text_result, start_clock, name)
+                await self.add_chunk_text(result, async_callbacks, sync_callbacks, chunk, text_result, start_clock, name)
             output = "".join(text_result)
     
         usage = chunk.prompt_tokens, chunk.completion_tokens
@@ -287,7 +288,7 @@ class LLMModel(BaseModel):
             completion = self.acomplete_iter(formatted_prompt)
             text_result = []
             async for chunk in completion:
-                self.add_chunk_text(result, async_callbacks, sync_callbacks, chunk, text_result, start_clock, name)
+                await self.add_chunk_text(result, async_callbacks, sync_callbacks, chunk, text_result, start_clock, name)
             output = "".join(text_result)
         
         usage = chunk.prompt_tokens, chunk.completion_tokens
