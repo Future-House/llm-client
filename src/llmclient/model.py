@@ -102,25 +102,6 @@ def validate_json_completion(
         raise JSONSchemaValidationError(
             "The completion does not match the specified schema."
         ) from err
-    
-
-
-'''
-    class LLMModel(ABC, BaseModel)
-
-
-    
-    class PaperQAModel(LLMModel)
-
-    
-
-    class LDPModel(LLMModel)
-
-    
-
-'''
-
-
 
 class MultipleCompletionLLMModel(BaseModel):
     """Run n completions at once, all starting from the same messages."""
@@ -130,6 +111,16 @@ class MultipleCompletionLLMModel(BaseModel):
     # this should keep the original model
     # if fine-tuned, this should still refer to the base model
     name: str = "unknown"
+    llm_result_callback: (
+        Callable[[LLMResult], None] | Callable[[LLMResult], Awaitable[None]] | None
+    ) = Field(
+        default=None,
+        description=(
+            "An async callback that will be executed on each"
+            " LLMResult (different than callbacks that execute on each chunk)"
+        ),
+        exclude=True,
+    )
     config: dict = Field(
         default={
             "model": "gpt-3.5-turbo",  # Default model should have cheap input/output for testing
