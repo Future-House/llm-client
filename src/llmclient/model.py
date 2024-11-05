@@ -224,8 +224,8 @@ class LLMModel(BaseModel):
             name=name,
             prompt=messages,
             prompt_count=(
-                sum(self.count_tokens(m["content"]) for m in messages)
-                + sum(self.count_tokens(m["role"]) for m in messages)
+                sum(self.count_tokens(m["content"]) for m in messages) +
+                sum(self.count_tokens(m["role"]) for m in messages)
             ),
         )
 
@@ -320,8 +320,6 @@ class LLMModel(BaseModel):
         Only the last tuple will be non-zero.
         """
         raise NotImplementedError
-        if False:  # type: ignore[unreachable]  # pylint: disable=using-constant-test
-            yield  # Trick mypy: https://github.com/python/mypy/issues/5070#issuecomment-1050834495
 
     async def achat(
         self, messages: Iterable[Message], **kwargs

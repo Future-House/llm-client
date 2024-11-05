@@ -1,4 +1,3 @@
-from chunk import Chunk
 from pydantic import (
     BaseModel,
     Field,
@@ -10,6 +9,7 @@ from uuid import UUID, uuid4
 from datetime import datetime
 from contextlib import contextmanager
 from inspect import signature
+from itertools import chain
 
 import contextlib
 import contextvars
@@ -56,12 +56,9 @@ async def do_callbacks(
     chunk: str,
     name: str | None,
 ) -> None:
-    for f in async_callbacks:
+    for f in chain(async_callbacks, sync_callbacks):
         args, kwargs = prepare_args(f, chunk, name)
         await f(*args, **kwargs)
-    for f in sync_callbacks:
-        args, kwargs = prepare_args(f, chunk, name)
-        f(*args, **kwargs)
 
 @contextmanager
 def set_llm_session_ids(session_id: UUID):
