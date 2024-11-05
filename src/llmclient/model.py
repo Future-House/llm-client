@@ -110,7 +110,6 @@ class LLMModel(BaseModel):
 
     # this should keep the original model
     # if fine-tuned, this should still refer to the base model
-    chunk: any = None
     name: str = "unknown"
     llm_type: str | None = None
     llm_result_callback: (
@@ -169,27 +168,23 @@ class LLMModel(BaseModel):
             result.completion_count = self.count_tokens(output)
         result.text = output or ""
         result.seconds_to_last_token = asyncio.get_running_loop().time() - start_clock
+        if result.seconds_to_first_token == 0:
+                result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
         if self.llm_result_callback:
             if is_coroutine_callable(self.llm_result_callback):
                 await self.llm_result_callback(result)  # type: ignore[misc]
             else:
                 self.llm_result_callback(result)
         return result
-
-    async def get_output(self, result, async_callbacks, sync_callbacks, start_clock, name, completion):
-        text_result = []
-        async for chunk in completion:
-            self.chunk = chunk
-            if chunk.text:
-                if result.seconds_to_first_token == 0:
-                    result.seconds_to_first_token = (
-                        asyncio.get_running_loop().time() - start_clock
-                    )
-                text_result.append(chunk.text)
-                await do_callbacks(
-                    async_callbacks, sync_callbacks, chunk.text, name
-                )
-        return "".join(text_result)
+    
+    async def add_chunk_text(self, result, async_callbacks, sync_callbacks, chunk, text_result, start_clock, name):
+        if chunk.text:
+            if result.seconds_to_first_token == 0:
+                result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
+            text_result.append(chunk.text)
+            await do_callbacks(
+                async_callbacks, sync_callbacks, chunk.text, name
+            )
 
     async def _run_chat(
         self,
@@ -235,15 +230,18 @@ class LLMModel(BaseModel):
 
         start_clock = asyncio.get_running_loop().time()
         if callbacks is None:
-            self.chunk = await self.achat(messages)
-            output = self.chunk.text
+            chunk = await self.achat(messages)
+            output = chunk.text
         else:
             sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
             async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
             completion = await self.achat_iter(messages)  # type: ignore[misc]
-            output = await self.get_output(result, async_callbacks, sync_callbacks, start_clock, name, completion)
-        
-        usage = self.chunk.prompt_tokens, self.chunk.completion_tokens
+            text_result = []
+            async for chunk in completion:
+                self.add_chunk_text(result, async_callbacks, sync_callbacks, chunk, text_result, start_clock, name)
+            output = "".join(text_result)
+    
+        usage = chunk.prompt_tokens, chunk.completion_tokens
         return await self.get_result(usage, result, output, start_clock)
 
     async def _run_completion(
@@ -280,16 +278,19 @@ class LLMModel(BaseModel):
 
         start_clock = asyncio.get_running_loop().time()
         if callbacks is None:
-            self.chunk = await self.acomplete(formatted_prompt)
-            output = self.chunk.text
+            chunk = await self.acomplete(formatted_prompt)
+            output = chunk.text
         else:
             sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
             async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
 
             completion = self.acomplete_iter(formatted_prompt)
-            output = await self.get_output(result, async_callbacks, sync_callbacks, start_clock, name, completion)
+            text_result = []
+            async for chunk in completion:
+                self.add_chunk_text(result, async_callbacks, sync_callbacks, chunk, text_result, start_clock, name)
+            output = "".join(text_result)
         
-        usage = self.chunk.prompt_tokens, self.chunk.completion_tokens
+        usage = chunk.prompt_tokens, chunk.completion_tokens
         return await self.get_result(usage, result, output, start_clock)
     
 
@@ -469,9 +470,7 @@ class LLMModel(BaseModel):
                 if delta.content:
                     s = delta.content
                     if result.seconds_to_first_token == 0:
-                        result.seconds_to_first_token = (
-                            asyncio.get_running_loop().time() - start_clock
-                        )
+                        result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
                     text_result.append(s)
                     [await f(s) for f in async_callbacks]
                     [f(s) for f in sync_callbacks]
