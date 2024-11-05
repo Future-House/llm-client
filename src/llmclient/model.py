@@ -103,14 +103,16 @@ def validate_json_completion(
             "The completion does not match the specified schema."
         ) from err
 
-class MultipleCompletionLLMModel(BaseModel):
+class LLMModel(BaseModel):
     """Run n completions at once, all starting from the same messages."""
 
     model_config = ConfigDict(extra="forbid")
 
     # this should keep the original model
     # if fine-tuned, this should still refer to the base model
+    chunk: any = None
     name: str = "unknown"
+    llm_type: str | None = None
     llm_result_callback: (
         Callable[[LLMResult], None] | Callable[[LLMResult], Awaitable[None]] | None
     ) = Field(
@@ -160,8 +162,7 @@ class MultipleCompletionLLMModel(BaseModel):
         raise ValueError(f"Unknown llm_type {self.llm_type!r}.")
     
 
-    async def get_result(self, chunk, result, output, start_clock):
-        usage = chunk.prompt_tokens, chunk.completion_tokens
+    async def get_result(self, usage, result, output, start_clock):
         if sum(usage) > 0:
             result.prompt_count, result.completion_count = usage
         elif output:
@@ -178,6 +179,7 @@ class MultipleCompletionLLMModel(BaseModel):
     async def get_output(self, result, async_callbacks, sync_callbacks, start_clock, name, completion):
         text_result = []
         async for chunk in completion:
+            self.chunk = chunk
             if chunk.text:
                 if result.seconds_to_first_token == 0:
                     result.seconds_to_first_token = (
@@ -233,15 +235,16 @@ class MultipleCompletionLLMModel(BaseModel):
 
         start_clock = asyncio.get_running_loop().time()
         if callbacks is None:
-            chunk = await self.achat(messages)
-            output = chunk.text
+            self.chunk = await self.achat(messages)
+            output = self.chunk.text
         else:
             sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
             async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
             completion = await self.achat_iter(messages)  # type: ignore[misc]
-            output = self.get_output(result, async_callbacks, sync_callbacks, start_clock, name, completion)
-            
-        return self.get_result(chunk, output, start_clock)
+            output = await self.get_output(result, async_callbacks, sync_callbacks, start_clock, name, completion)
+        
+        usage = self.chunk.prompt_tokens, self.chunk.completion_tokens
+        return await self.get_result(usage, result, output, start_clock)
 
     async def _run_completion(
         self,
@@ -277,16 +280,17 @@ class MultipleCompletionLLMModel(BaseModel):
 
         start_clock = asyncio.get_running_loop().time()
         if callbacks is None:
-            chunk = await self.acomplete(formatted_prompt)
-            output = chunk.text
+            self.chunk = await self.acomplete(formatted_prompt)
+            output = self.chunk.text
         else:
             sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
             async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
 
             completion = self.acomplete_iter(formatted_prompt)
-            output = self.get_output(result, async_callbacks, sync_callbacks, start_clock, name, completion)
-
-        return self.get_result(chunk, output, start_clock)
+            output = await self.get_output(result, async_callbacks, sync_callbacks, start_clock, name, completion)
+        
+        usage = self.chunk.prompt_tokens, self.chunk.completion_tokens
+        return await self.get_result(usage, result, output, start_clock)
     
 
     @model_validator(mode="after")
