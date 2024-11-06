@@ -1,5 +1,11 @@
 import base64
 import io
+import contextlib
+
+from itertools import chain
+from collections.abc import Awaitable, Callable, Iterable
+from typing import Any
+from inspect import iscoroutinefunction, isfunction, signature
 
 def encode_image_to_base64(img: "np.ndarray") -> str:
     """Encode an image to a base64 string, to be included as an image_url in a Message."""
@@ -17,3 +23,29 @@ def encode_image_to_base64(img: "np.ndarray") -> str:
     return (
         f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"
     )
+
+async def do_callbacks(
+    async_callbacks: Iterable[Callable[..., Awaitable]],
+    sync_callbacks: Iterable[Callable[..., Any]],
+    chunk: str,
+    name: str | None,
+) -> None:
+    for f in chain(async_callbacks, sync_callbacks):
+        args, kwargs = prepare_args(f, chunk, name)
+        if iscoroutinefunction(f):
+            await f(*args, **kwargs)
+        else:
+            f(*args, **kwargs)
+
+def prepare_args(func: Callable, chunk: str, name: str | None) -> tuple[tuple, dict]:
+    with contextlib.suppress(TypeError):
+        if "name" in signature(func).parameters:
+            return (chunk,), {"name": name}
+    return (chunk,), {}
+
+def is_coroutine_callable(obj):
+    if isfunction(obj):
+        return iscoroutinefunction(obj)
+    elif callable(obj):  # noqa: RET505
+        return iscoroutinefunction(obj.__call__)
+    return False

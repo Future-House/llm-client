@@ -4,54 +4,22 @@ from pydantic import (
     ConfigDict,
     computed_field,
 )
-from typing import Any, Iterable, Union, List, Optional
+from typing import Union, List, Optional
 from uuid import UUID, uuid4
 from datetime import datetime
 from contextlib import contextmanager
-from inspect import signature
-from itertools import chain
 
-import contextlib
 import contextvars
 import litellm
 import logging
-import inspect
 
-from collections.abc import (
-    Awaitable,
-    Callable,
-)
-
-from llmclient.message import LLMMessage as Message
+from aviary.core import Message
 
 logger = logging.getLogger(__name__)
 
 # A context var that will be unique to threads/processes
 cvar_session_id = contextvars.ContextVar[UUID | None]("session_id", default=None)
 
-
-def prepare_args(func: Callable, chunk: str, name: str | None) -> tuple[tuple, dict]:
-    with contextlib.suppress(TypeError):
-        if "name" in signature(func).parameters:
-            return (chunk,), {"name": name}
-    return (chunk,), {}
-
-def is_coroutine_callable(obj):
-    if inspect.isfunction(obj):
-        return inspect.iscoroutinefunction(obj)
-    elif callable(obj):  # noqa: RET505
-        return inspect.iscoroutinefunction(obj.__call__)
-    return False
-
-async def do_callbacks(
-    async_callbacks: Iterable[Callable[..., Awaitable]],
-    sync_callbacks: Iterable[Callable[..., Any]],
-    chunk: str,
-    name: str | None,
-) -> None:
-    for f in chain(async_callbacks, sync_callbacks):
-        args, kwargs = prepare_args(f, chunk, name)
-        await f(*args, **kwargs)
 
 @contextmanager
 def set_llm_session_ids(session_id: UUID):

@@ -1,7 +1,5 @@
 import asyncio
-from itertools import chain
 import json
-import contextlib
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
 from typing import Any, AsyncIterable, ClassVar, Self, cast
 
@@ -11,29 +9,13 @@ from aviary.core import (
     Tool,
     ToolRequestMessage,
     ToolsAdapter,
-    is_coroutine_callable,
 )
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
-from inspect import signature
 
 from llmclient.constants import default_system_prompt
 from llmclient.result import LLMResult
+from llmclient.util import do_callbacks, is_coroutine_callable
 
-def prepare_args(func: Callable, chunk: str, name: str | None) -> tuple[tuple, dict]:
-    with contextlib.suppress(TypeError):
-        if "name" in signature(func).parameters:
-            return (chunk,), {"name": name}
-    return (chunk,), {}
-
-async def do_callbacks(
-    async_callbacks: Iterable[Callable[..., Awaitable]],
-    sync_callbacks: Iterable[Callable[..., Any]],
-    chunk: str,
-    name: str | None,
-) -> None:
-    for f in chain(async_callbacks, sync_callbacks):
-        args, kwargs = prepare_args(f, chunk, name)
-        await f(*args, **kwargs)
 
 class Chunk(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
