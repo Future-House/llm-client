@@ -13,7 +13,7 @@ import contextvars
 import litellm
 import logging
 
-from aviary.core import Message
+from llmclient.message import LLMMessage as Message
 
 logger = logging.getLogger(__name__)
 
