@@ -22,9 +22,7 @@ from collections.abc import (
     Callable,
 )
 
-from aviary.core import (
-    Message
-)
+from llmclient.message import LLMMessage as Message
 
 logger = logging.getLogger(__name__)
 
