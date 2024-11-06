@@ -4,7 +4,7 @@ import json
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import TYPE_CHECKING, ClassVar, Self
 
-from util import encode_image_to_base64
+from llmclient.util import encode_image_to_base64
 
 if TYPE_CHECKING:
     import numpy as np

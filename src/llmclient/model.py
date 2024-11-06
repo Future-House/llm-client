@@ -1,4 +1,5 @@
 import asyncio
+from itertools import chain
 import json
 import contextlib
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
@@ -15,13 +16,8 @@ from aviary.core import (
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from inspect import signature
 
+from llmclient.constants import default_system_prompt
 from llmclient.result import LLMResult
-
-default_system_prompt = (
-    "Answer in a direct and concise tone. "
-    "Your audience is an expert, so be highly specific. "
-    "If there are ambiguous terms or acronyms, first define them."
-)
 
 def prepare_args(func: Callable, chunk: str, name: str | None) -> tuple[tuple, dict]:
     with contextlib.suppress(TypeError):
@@ -35,12 +31,9 @@ async def do_callbacks(
     chunk: str,
     name: str | None,
 ) -> None:
-    for f in async_callbacks:
+    for f in chain(async_callbacks, sync_callbacks):
         args, kwargs = prepare_args(f, chunk, name)
         await f(*args, **kwargs)
-    for f in sync_callbacks:
-        args, kwargs = prepare_args(f, chunk, name)
-        f(*args, **kwargs)
 
 class Chunk(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -148,13 +141,14 @@ class LLMModel(BaseModel):
         skip_system: bool = False,
         system_prompt: str = default_system_prompt,
     ) -> LLMResult:
-        if self.llm_type is None:
+        if not self.llm_type:
             self.llm_type = self.infer_llm_type()
+
         if self.llm_type == "chat":
             return await self._run_chat(
                 prompt, data, callbacks, name, skip_system, system_prompt
             )
-        if self.llm_type == "completion":
+        elif self.llm_type == "completion":
             return await self._run_completion(
                 prompt, data, callbacks, name, skip_system, system_prompt
             )
@@ -166,8 +160,10 @@ class LLMModel(BaseModel):
             result.prompt_count, result.completion_count = usage
         elif output:
             result.completion_count = self.count_tokens(output)
+            
         result.text = output or ""
         result.seconds_to_last_token = asyncio.get_running_loop().time() - start_clock
+
         if self.llm_result_callback:
             if is_coroutine_callable(self.llm_result_callback):
                 await self.llm_result_callback(result)  # type: ignore[misc]
