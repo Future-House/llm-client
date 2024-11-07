@@ -5,6 +5,7 @@ from typing import Any, AsyncIterable, ClassVar, Self, cast
 
 import litellm
 from aviary.core import (
+    Message,
     Tool,
     ToolRequestMessage,
     ToolsAdapter,
@@ -14,8 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from llmclient.constants import default_system_prompt
 from llmclient.result import LLMResult
 from llmclient.util import do_callbacks, is_coroutine_callable
-# from llmclient.message import LLMMessage as Message
-from aviary.core import Message
+# from llmclient.message import LLMMessage as Message, Tool, ToolRequestMessage, ToolsAdapter
 
 class Chunk(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
