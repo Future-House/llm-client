@@ -324,6 +324,83 @@ class LLMModel(BaseModel):
     # > `required` means the model must call one or more tools.
     TOOL_CHOICE_REQUIRED: ClassVar[str] = "required"
 
+    async def handle_callbacks(self, tools, n, chat_kwargs, prompt, callbacks, messages, start_clock, results):
+        if tools:
+            raise NotImplementedError("Using tools with callbacks is not supported")
+        if n > 1:
+            raise NotImplementedError(
+                "Multiple completions with callbacks is not supported"
+            )
+        result = LLMResult(model=self.name, config=chat_kwargs, prompt=prompt)
+
+        sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
+        async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
+        stream_completion = await self.achat_iter(messages, **chat_kwargs)
+        text_result = []
+        role = "assistant"
+
+        async for chunk in stream_completion:
+            delta = chunk.choices[0].delta
+            role = delta.role or role
+            if delta.content:
+                s = delta.content
+                if result.seconds_to_first_token == 0:
+                    result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
+                text_result.append(s)
+                [await f(s) for f in async_callbacks]
+                [f(s) for f in sync_callbacks]
+            if hasattr(chunk, "usage"):
+                result.prompt_count = chunk.usage.prompt_tokens
+
+        output = "".join(text_result)
+        result.completion_count = litellm.token_counter(
+            model=self.name,
+            text=output,
+        )
+        # TODO: figure out how tools stream, and log probs
+        result.messages = [Message(role=role, content=output)]
+        results.append(result)
+
+    async def handle_no_callbacks(self, tools, chat_kwargs, prompt, results, output_type):
+        # self.handle_no_callbacks()
+
+        completion: litellm.ModelResponse = await self.achat(prompt, **chat_kwargs)
+        if output_type:
+            validate_json_completion(completion, output_type)
+
+        for choice in completion.choices:
+            if isinstance(choice, litellm.utils.StreamingChoices):
+                raise NotImplementedError("Streaming is not yet supported.")
+
+            if (
+                tools is not None  # Allows for empty tools list
+                or choice.finish_reason == "tool_calls"
+                or (getattr(choice.message, "tool_calls", None) is not None)
+            ):
+                serialized_choice_message = choice.message.model_dump()
+                serialized_choice_message["tool_calls"] = (
+                    serialized_choice_message.get("tool_calls") or []
+                )
+                output_messages: list[Message | ToolRequestMessage] = [
+                    ToolRequestMessage(**serialized_choice_message)
+                ]
+            else:
+                output_messages = [Message(**choice.message.model_dump())]
+
+            results.append(
+                LLMResult(
+                    model=self.name,
+                    config=chat_kwargs,
+                    prompt=prompt,
+                    messages=output_messages,
+                    logprob=sum_logprobs(choice),
+                    system_fingerprint=completion.system_fingerprint,
+                    # Note that these counts are aggregated over all choices
+                    completion_count=completion.usage.completion_tokens,  # type: ignore[attr-defined,unused-ignore]
+                    prompt_count=completion.usage.prompt_tokens,  # type: ignore[attr-defined,unused-ignore]
+                )
+            )
+
     async def call(  # noqa: C901, PLR0915
         self,
         messages: list[Message],
@@ -390,78 +467,9 @@ class LLMModel(BaseModel):
         results: list[LLMResult] = []
 
         if callbacks is None:
-            completion: litellm.ModelResponse = await self.achat(prompt, **chat_kwargs)
-            if output_type is not None:
-                validate_json_completion(completion, output_type)
-
-            for choice in completion.choices:
-                if isinstance(choice, litellm.utils.StreamingChoices):
-                    raise NotImplementedError("Streaming is not yet supported.")
-
-                if (
-                    tools is not None  # Allows for empty tools list
-                    or choice.finish_reason == "tool_calls"
-                    or (getattr(choice.message, "tool_calls", None) is not None)
-                ):
-                    serialized_choice_message = choice.message.model_dump()
-                    serialized_choice_message["tool_calls"] = (
-                        serialized_choice_message.get("tool_calls") or []
-                    )
-                    output_messages: list[Message | ToolRequestMessage] = [
-                        ToolRequestMessage(**serialized_choice_message)
-                    ]
-                else:
-                    output_messages = [Message(**choice.message.model_dump())]
-
-                results.append(
-                    LLMResult(
-                        model=self.name,
-                        config=chat_kwargs,
-                        prompt=prompt,
-                        messages=output_messages,
-                        logprob=sum_logprobs(choice),
-                        system_fingerprint=completion.system_fingerprint,
-                        # Note that these counts are aggregated over all choices
-                        completion_count=completion.usage.completion_tokens,  # type: ignore[attr-defined,unused-ignore]
-                        prompt_count=completion.usage.prompt_tokens,  # type: ignore[attr-defined,unused-ignore]
-                    )
-                )
+            await self.handle_no_callbacks(tools, chat_kwargs, prompt, results, output_type)
         else:
-            if tools:
-                raise NotImplementedError("Using tools with callbacks is not supported")
-            if n > 1:
-                raise NotImplementedError(
-                    "Multiple completions with callbacks is not supported"
-                )
-            result = LLMResult(model=self.name, config=chat_kwargs, prompt=prompt)
-
-            sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
-            async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
-            stream_completion = await self.achat_iter(messages, **chat_kwargs)
-            text_result = []
-            role = "assistant"
-
-            async for chunk in stream_completion:
-                delta = chunk.choices[0].delta
-                role = delta.role or role
-                if delta.content:
-                    s = delta.content
-                    if result.seconds_to_first_token == 0:
-                        result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
-                    text_result.append(s)
-                    [await f(s) for f in async_callbacks]
-                    [f(s) for f in sync_callbacks]
-                if hasattr(chunk, "usage"):
-                    result.prompt_count = chunk.usage.prompt_tokens
-
-            output = "".join(text_result)
-            result.completion_count = litellm.token_counter(
-                model=self.name,
-                text=output,
-            )
-            # TODO: figure out how tools stream, and log probs
-            result.messages = [Message(role=role, content=output)]
-            results.append(result)
+            await self.handle_callbacks(tools, n, chat_kwargs, prompt, callbacks, messages, start_clock, results)
 
         if not results:
             # This happens in unit tests. We should probably not keep this block around

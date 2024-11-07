@@ -37,7 +37,7 @@ class LLMResult(BaseModel):
     model_config: ConfigDict = ConfigDict(populate_by_name=True)
     name: Optional[str] = None
     model: str = ""
-    text: str = "" 
+    text: str = ""
     prompt_count: int = Field(default=0, description="Count of prompt tokens.")
     completion_count: int = Field(default=0, description="Count of completion tokens.")
     date: str = Field(default_factory=lambda: datetime.now().isoformat())
