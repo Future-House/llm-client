@@ -126,16 +126,12 @@ class LLMModel(BaseModel):
         if not self.llm_type:
             self.llm_type = self.infer_llm_type()
 
-        if self.llm_type == "chat":
-            return await self._run_chat(
-                prompt, data, callbacks, name, skip_system, system_prompt
-            )
-        elif self.llm_type == "completion":
-            return await self._run_completion(
-                prompt, data, callbacks, name, skip_system, system_prompt
-            )
-        raise ValueError(f"Unknown llm_type {self.llm_type!r}.")
-    
+        run = getattr(self, "_run_" + self.llm_type)
+        if not run:
+            raise ValueError(f"Unknown llm_type {self.llm_type!r}.")
+        
+        return await run(prompt, data, callbacks, name, skip_system, system_prompt)
+
 
     async def get_result(self, usage, result, output, start_clock):
         if sum(usage) > 0:
@@ -143,7 +139,7 @@ class LLMModel(BaseModel):
         elif output:
             result.completion_count = self.count_tokens(output)
             
-        result.text = output or ""
+        result.text = output
         result.seconds_to_last_token = asyncio.get_running_loop().time() - start_clock
 
         if self.llm_result_callback:
@@ -153,7 +149,7 @@ class LLMModel(BaseModel):
                 self.llm_result_callback(result)
         return result
     
-    async def add_chunk_text(self, result, async_callbacks, sync_callbacks, chunk, text_result, start_clock, name):
+    async def add_chunk_text(self, result, callbacks, chunk, text_result, start_clock, name):
         if not chunk.text:
             return
         
@@ -161,9 +157,7 @@ class LLMModel(BaseModel):
             result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
 
         text_result.append(chunk.text)
-        await do_callbacks(
-            async_callbacks, sync_callbacks, chunk.text, name
-        )
+        await do_callbacks(callbacks, chunk.text, name)
 
     async def _run_chat(
         self,
@@ -208,16 +202,14 @@ class LLMModel(BaseModel):
         )
 
         start_clock = asyncio.get_running_loop().time()
-        if callbacks is None:
+        if not callbacks:
             chunk = await self.achat(messages)
             output = chunk.text
         else:
-            sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
-            async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
             completion = await self.achat_iter(messages)  # type: ignore[misc]
             text_result = []
             async for chunk in completion:
-                await self.add_chunk_text(result, async_callbacks, sync_callbacks, chunk, text_result, start_clock, name)
+                await self.add_chunk_text(result, callbacks, chunk, text_result, start_clock, name)
             output = "".join(text_result)
     
         usage = chunk.prompt_tokens, chunk.completion_tokens
@@ -256,17 +248,14 @@ class LLMModel(BaseModel):
         )
 
         start_clock = asyncio.get_running_loop().time()
-        if callbacks is None:
+        if not callbacks:
             chunk = await self.acomplete(formatted_prompt)
             output = chunk.text
         else:
-            sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
-            async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
-
             completion = self.acomplete_iter(formatted_prompt)
             text_result = []
             async for chunk in completion:
-                await self.add_chunk_text(result, async_callbacks, sync_callbacks, chunk, text_result, start_clock, name)
+                await self.add_chunk_text(result, callbacks, chunk, text_result, start_clock, name)
             output = "".join(text_result)
         
         usage = chunk.prompt_tokens, chunk.completion_tokens
@@ -276,10 +265,8 @@ class LLMModel(BaseModel):
     @model_validator(mode="after")
     def set_model_name(self) -> Self:
         if (
-            self.config.get("model") in {"gpt-3.5-turbo", None}
-            and self.name != "unknown"
-            or self.name != "unknown"
-            and "model" not in self.config
+            self.name != "unknown" and
+            self.config.get("model", "unknown") in ("gpt-3.5-turbo", None)
         ):
             self.config["model"] = self.name
         elif "model" in self.config and self.name == "unknown":
@@ -332,25 +319,24 @@ class LLMModel(BaseModel):
                 "Multiple completions with callbacks is not supported"
             )
         result = LLMResult(model=self.name, config=chat_kwargs, prompt=prompt)
-
-        sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
-        async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
         stream_completion = await self.achat_iter(messages, **chat_kwargs)
-        text_result = []
         role = "assistant"
+        text_result = []
 
         async for chunk in stream_completion:
             delta = chunk.choices[0].delta
             role = delta.role or role
-            if delta.content:
-                s = delta.content
-                if result.seconds_to_first_token == 0:
-                    result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
-                text_result.append(s)
-                [await f(s) for f in async_callbacks]
-                [f(s) for f in sync_callbacks]
             if hasattr(chunk, "usage"):
                 result.prompt_count = chunk.usage.prompt_tokens
+
+            if not delta.content:
+                continue
+
+            if result.seconds_to_first_token == 0:
+                result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
+
+            text_result.append(delta.content)
+            await do_callbacks(callbacks, delta.content)
 
         output = "".join(text_result)
         result.completion_count = litellm.token_counter(
@@ -362,8 +348,6 @@ class LLMModel(BaseModel):
         results.append(result)
 
     async def handle_no_callbacks(self, tools, chat_kwargs, prompt, results, output_type):
-        # self.handle_no_callbacks()
-
         completion: litellm.ModelResponse = await self.achat(prompt, **chat_kwargs)
         if output_type:
             validate_json_completion(completion, output_type)
@@ -429,7 +413,7 @@ class LLMModel(BaseModel):
                 )
 
         # deal with specifying output type
-        if output_type is not None:
+        if output_type:
             schema = json.dumps(output_type.model_json_schema(mode="serialization"))
             schema_msg = f"Respond following this JSON schema:\n\n{schema}"
             # Get the system prompt and its index, or the index to add it
@@ -466,10 +450,10 @@ class LLMModel(BaseModel):
         ]
         results: list[LLMResult] = []
 
-        if callbacks is None:
-            await self.handle_no_callbacks(tools, chat_kwargs, prompt, results, output_type)
-        else:
+        if callbacks:
             await self.handle_callbacks(tools, n, chat_kwargs, prompt, callbacks, messages, start_clock, results)
+        else:
+            await self.handle_no_callbacks(tools, chat_kwargs, prompt, results, output_type)
 
         if not results:
             # This happens in unit tests. We should probably not keep this block around

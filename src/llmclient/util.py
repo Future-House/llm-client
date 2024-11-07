@@ -2,8 +2,7 @@ import base64
 import io
 import contextlib
 
-from itertools import chain
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 from inspect import iscoroutinefunction, isfunction, signature
 
@@ -25,19 +24,18 @@ def encode_image_to_base64(img: "np.ndarray") -> str:
     )
 
 async def do_callbacks(
-    async_callbacks: Iterable[Callable[..., Awaitable]],
-    sync_callbacks: Iterable[Callable[..., Any]],
+    callbacks: Iterable[Callable[..., Any]],
     chunk: str,
-    name: str | None,
+    name: str = None,
 ) -> None:
-    for f in chain(async_callbacks, sync_callbacks):
+    for f in callbacks:
         args, kwargs = prepare_args(f, chunk, name)
         if iscoroutinefunction(f):
             await f(*args, **kwargs)
         else:
             f(*args, **kwargs)
 
-def prepare_args(func: Callable, chunk: str, name: str | None) -> tuple[tuple, dict]:
+def prepare_args(func: Callable, chunk: str, name: str = None) -> tuple[tuple, dict]:
     with contextlib.suppress(TypeError):
         if "name" in signature(func).parameters:
             return (chunk,), {"name": name}
