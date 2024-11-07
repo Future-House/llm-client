@@ -15,7 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from llmclient.constants import default_system_prompt
 from llmclient.result import LLMResult
 from llmclient.util import do_callbacks, is_coroutine_callable
-# from llmclient.message import LLMMessage as Message, Tool, ToolRequestMessage, ToolsAdapter
 
 class Chunk(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -322,7 +321,7 @@ class LLMModel(BaseModel):
         stream_completion = await self.achat_iter(messages, **chat_kwargs)
         role = "assistant"
         text_result = []
-
+        
         async for chunk in stream_completion:
             delta = chunk.choices[0].delta
             role = delta.role or role

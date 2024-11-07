@@ -8,6 +8,5 @@ $ uv sync && uv run pytest
 ```
 
 ## Clients
-- LLMMessage
 - LLMModel
 - LLMResult

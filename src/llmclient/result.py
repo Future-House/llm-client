@@ -13,7 +13,6 @@ import contextvars
 import litellm
 import logging
 
-# from llmclient.message import LLMMessage as Message
 from aviary.core import Message
 
 logger = logging.getLogger(__name__)
@@ -69,6 +68,7 @@ class LLMResult(BaseModel):
     logprob: Optional[float] = Field(
         default=None, description="Sum of logprobs in the completion."
     )
+    finish_reason: str = ""
 
     @property
     def prompt_and_completion_costs(self) -> tuple[float, float]:
