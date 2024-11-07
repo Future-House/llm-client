@@ -1,13 +1,101 @@
 from __future__ import annotations
 
+from itertools import starmap
 import json
-from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import TYPE_CHECKING, ClassVar, Self
+import logging
+import uuid
+
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
+
+from pydantic import BaseModel, Field, field_validator, field_serializer, model_validator
 
 from llmclient.util import encode_image_to_base64
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
+    from logging import LogRecord
+
     import numpy as np
+
+# A string to denote an invalid tool. It can be used to indicate
+# an attempt to use a non-existent tool, missing/invalid parameters,
+# mangled output from the LLM, etc.
+INVALID_TOOL_NAME = "INVALID"
+
+
+class ToolCallFunction(BaseModel):
+    arguments: dict[str, Any]
+    name: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def deserialize_args(cls, data: Any) -> Any:
+        if isinstance(data, dict) and isinstance(data["arguments"], str | None):
+            if not data["arguments"]:
+                data["arguments"] = {}
+            else:
+                try:
+                    data["arguments"] = json.loads(data["arguments"])
+                except json.JSONDecodeError:
+                    # If the arguments are not parseable, mark this ToolCall(Function) as invalid
+                    # so we can enable "learn"ing what a valid tool call looks like
+                    logger.warning(
+                        f"Failed to JSON load tool {data.get('name')}'s arguments"
+                        f" {data['arguments']}, declaring as {INVALID_TOOL_NAME}."
+                    )
+                    data["name"] = INVALID_TOOL_NAME
+                    data["arguments"] = {}
+
+        return data
+
+    @field_serializer("arguments")
+    def serialize_arguments(self, arguments: dict[str, Any]) -> str:
+        return json.dumps(arguments)
+
+    def __str__(self) -> str:
+        arg_str = ", ".join([f"{k}='{v}'" for k, v in self.arguments.items()])
+        return f"{self.name}({arg_str})"
+
+
+class ToolCall(BaseModel):
+    id: str
+    type: Literal["function"] = "function"
+    function: ToolCallFunction
+
+    @staticmethod
+    def generate_id() -> str:
+        """Generate a tool call ID of length 9 with values in [a-zA-Z0-9]."""
+        return str(uuid.uuid4()).replace("-", "")[:9]
+
+    @classmethod
+    def from_tool(cls, tool: "Tool", *args, id: str | None = None, **kwargs) -> Self:  # noqa: A002
+        """Create a ToolCall from a Tool and arguments.
+
+        The *args is packaged into the ToolCallFunction's arguments dict with best effort.
+        **kwargs is what is passed to toolcall because we have to use named parameters.
+        """
+        # convert args to kwargs by matching them with the tool's parameters
+        for i, name in enumerate(tool.info.parameters.properties.keys()):
+            if i < len(args):
+                kwargs[name] = args[i]
+        return cls(
+            id=id or cls.generate_id(),
+            function=ToolCallFunction(name=tool.info.name, arguments=kwargs),
+        )
+
+    @classmethod
+    def from_name(cls, function_name: str, **kwargs) -> Self:
+        return cls(
+            id=cls.generate_id(),
+            function=ToolCallFunction(name=function_name, arguments=kwargs),
+        )
+
+    def __str__(self) -> str:
+        arg_str = ", ".join([f"{k}='{v}'" for k, v in self.function.arguments.items()])
+        return f"{self.function.name}({arg_str})"
+
 
 
 class LLMMessage(BaseModel):
@@ -48,6 +136,7 @@ class LLMMessage(BaseModel):
         exclude=True,
         repr=False,
     )
+    model: str = ""
 
     @field_validator("role")
     @classmethod
@@ -59,20 +148,16 @@ class LLMMessage(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def serialize_content(cls, data):
-        if not isinstance(data, dict):
-            return
-
-        content = data["content"]
-        if not content or isinstance(content, str):
-            return
-
-        try:
-            data["content"] = json.dumps(content)
-            data["content_is_json_str"] = True
-        except TypeError as e:
-            raise ValueError(
-                "Content must be a string or JSON-serializable."
-            ) from e
+        if isinstance(data, dict) and "content" in data:
+            content = data["content"]
+            if content is not None and not isinstance(content, str):
+                try:
+                    data["content"] = json.dumps(content)
+                    data["content_is_json_str"] = True
+                except TypeError as e:
+                    raise ValueError(
+                        "Content must be a string or JSON-serializable."
+                    ) from e
         return data
 
     def __str__(self) -> str:
@@ -135,3 +220,94 @@ class LLMMessage(BaseModel):
             if text is not None:
                 content.append({"type": "text", "text": text})
         return cls(role=role, content=content)
+
+
+class ToolRequestMessage(LLMMessage):
+    role: Literal["assistant"] = Field(
+        default="assistant", description="Matching LiteLLM structure."
+    )
+    content: str | None = None
+    function_call: None = None
+    tool_calls: list[ToolCall] = Field(
+        default_factory=list,
+        description="List of ToolCalls to make concurrently and independently.",
+    )
+
+    def __str__(self) -> str:
+        if not self.tool_calls:
+            return super().__str__()
+        base_msg = f"Tool request message {self.content or ''!r}"
+        if len(self.tool_calls) == 1:
+            return (
+                f"{base_msg} for tool calls: "
+                f"{self.tool_calls[0]} [id={self.tool_calls[0].id}]"
+            )
+        return f"{base_msg} for tool calls: " + "; ".join([
+            f"{tc!s} [id={tc.id}]" for tc in self.tool_calls
+        ])
+
+
+class ToolResponseMessage(LLMMessage):
+    content: str = Field(
+        description=(
+            "Response message content, required to be a string by OpenAI/Anthropic."
+        ),
+    )
+    role: Literal["tool"] = Field(
+        default="tool", description="Matching LiteLLM structure."
+    )
+    name: str = Field(description="Name of the tool that was called.")
+    tool_call_id: str = Field(
+        description=(
+            "Propagated from ToolCall.id, enabling matching response with"
+            " ToolRequestMessage."
+        )
+    )
+
+    @classmethod
+    def from_call(cls, call: ToolCall, content: str) -> Self:
+        return cls(content=content, name=call.function.name, tool_call_id=call.id)
+
+    @classmethod
+    def from_request(
+        cls, request: ToolRequestMessage, contents: Iterable[str]
+    ) -> list[Self]:
+        return list(
+            starmap(cls.from_call, zip(request.tool_calls, contents, strict=True))
+        )
+
+    def __str__(self) -> str:
+        return (
+            f"Tool response message {self.content!r} for tool call ID"
+            f" {self.tool_call_id} of tool {self.name!r}"
+        )
+
+def join(
+    msgs: Iterable[LLMMessage], delimiter: str = "\n", include_roles: bool = True
+) -> str:
+    return delimiter.join(
+        f"{f'{m.role}: ' if include_roles else ''}{m.content or ''}" for m in msgs
+    )
+
+
+class MalformedMessageError(ValueError):
+    """Error to throw if some aspect of a Message variant is malformed."""
+
+    @classmethod
+    def common_retryable_errors_log_filter(cls, record: LogRecord) -> bool:
+        """
+        Filter out common parsing failures not worth looking into from logs.
+
+        Returns:
+            False if the LogRecord should be filtered out, otherwise True to keep it.
+        """
+        # NOTE: match both this Exception type's name and its content, to be robust
+        return not all(x in record.msg for x in (cls.__name__, EMPTY_CONTENT_BASE_MSG))
+
+
+class EnvStateMessage(LLMMessage):
+    """A message that contains the current state of the environment."""
+
+
+# Define separately so we can filter out this message type
+EMPTY_CONTENT_BASE_MSG = "No content in message"

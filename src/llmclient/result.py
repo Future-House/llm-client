@@ -13,7 +13,8 @@ import contextvars
 import litellm
 import logging
 
-from llmclient.message import LLMMessage as Message
+# from llmclient.message import LLMMessage as Message
+from aviary.core import Message
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class LLMResult(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     model_config: ConfigDict = ConfigDict(populate_by_name=True)
     name: Optional[str] = None
-    model: str
+    model: str = ""
     text: str = "" 
     prompt_count: int = Field(default=0, description="Count of prompt tokens.")
     completion_count: int = Field(default=0, description="Count of completion tokens.")
@@ -48,7 +49,6 @@ class LLMResult(BaseModel):
         default=0.0,
         description="Delta time (sec) to last response token's arrival."
     )
-    
     system_fingerprint: Optional[str] = Field(
         default=None, description="System fingerprint received from the LLM."
     )

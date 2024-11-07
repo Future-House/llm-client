@@ -14,7 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from llmclient.constants import default_system_prompt
 from llmclient.result import LLMResult
 from llmclient.util import do_callbacks, is_coroutine_callable
-from llmclient.message import LLMMessage as Message
+# from llmclient.message import LLMMessage as Message
+from aviary.core import Message
 
 class Chunk(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
