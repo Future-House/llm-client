@@ -29,6 +29,7 @@ def set_llm_session_ids(session_id: UUID):
     finally:
         cvar_session_id.reset(token)
 
+
 class LLMResult(BaseModel):
     """A unified class to hold the result of a LLM completion, replacing two prior versions."""
 
@@ -41,29 +42,26 @@ class LLMResult(BaseModel):
     completion_count: int = Field(default=0, description="Count of completion tokens.")
     date: str = Field(default_factory=lambda: datetime.now().isoformat())
     seconds_to_first_token: Optional[float] = Field(
-        default=0.0,
-        description="Delta time (sec) to first response token's arrival."
+        default=0.0, description="Delta time (sec) to first response token's arrival."
     )
     seconds_to_last_token: float = Field(
-        default=0.0,
-        description="Delta time (sec) to last response token's arrival."
+        default=0.0, description="Delta time (sec) to last response token's arrival."
     )
     system_fingerprint: Optional[str] = Field(
         default=None, description="System fingerprint received from the LLM."
     )
     prompt: Union[str, List[dict], List[Message], None] = Field(
         default=None,
-        description="Optional prompt (str) or list of serialized prompts (list[dict])."
+        description="Optional prompt (str) or list of serialized prompts (list[dict]).",
     )
     config: Optional[dict] = None
     messages: Optional[List[Message]] = Field(
-        default=None,
-        description="Messages received from the LLM."
+        default=None, description="Messages received from the LLM."
     )
     session_id: Optional[UUID] = Field(
         default_factory=cvar_session_id.get,
         description="A persistent ID to associate a group of LLMResults",
-        alias="answer_id"
+        alias="answer_id",
     )
     logprob: Optional[float] = Field(
         default=None, description="Sum of logprobs in the completion."
@@ -88,7 +86,7 @@ class LLMResult(BaseModel):
         """Get the supported OpenAI parameters for the model."""
         return litellm.get_supported_openai_params(self.model)
 
-    @computed_field # type: ignore[prop-decorator]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def cost(self) -> float:
         """Return the cost of the result in dollars."""

@@ -16,6 +16,7 @@ from llmclient.constants import default_system_prompt
 from llmclient.result import LLMResult
 from llmclient.util import do_callbacks, is_coroutine_callable
 
+
 class Chunk(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -26,8 +27,10 @@ class Chunk(BaseModel):
     def __str__(self):
         return self.text
 
+
 class JSONSchemaValidationError(ValueError):
     """Raised when the completion does not match the specified schema."""
+
 
 def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
     """Calculate the sum of the log probabilities of an LLM completion (a Choices object).
@@ -77,6 +80,7 @@ def validate_json_completion(
             "The completion does not match the specified schema."
         ) from err
 
+
 class LLMModel(BaseModel):
     """Run n completions at once, all starting from the same messages."""
 
@@ -106,13 +110,13 @@ class LLMModel(BaseModel):
 
     def __str__(self) -> str:
         return f"{type(self).__name__} {self.name}"
-    
+
     def infer_llm_type(self) -> str:
         return "completion"
-    
+
     def count_tokens(self, text: str) -> int:
         return len(text) // 4  # gross approximation
-    
+
     async def run_prompt(
         self,
         prompt: str,
@@ -128,16 +132,15 @@ class LLMModel(BaseModel):
         run = getattr(self, "_run_" + self.llm_type)
         if not run:
             raise ValueError(f"Unknown llm_type {self.llm_type!r}.")
-        
-        return await run(prompt, data, callbacks, name, skip_system, system_prompt)
 
+        return await run(prompt, data, callbacks, name, skip_system, system_prompt)
 
     async def get_result(self, usage, result, output, start_clock):
         if sum(usage) > 0:
             result.prompt_count, result.completion_count = usage
         elif output:
             result.completion_count = self.count_tokens(output)
-            
+
         result.text = output
         result.seconds_to_last_token = asyncio.get_running_loop().time() - start_clock
 
@@ -147,13 +150,17 @@ class LLMModel(BaseModel):
             else:
                 self.llm_result_callback(result)
         return result
-    
-    async def add_chunk_text(self, result, callbacks, chunk, text_result, start_clock, name):
+
+    async def add_chunk_text(
+        self, result, callbacks, chunk, text_result, start_clock, name
+    ):
         if not chunk.text:
             return
-        
+
         if result.seconds_to_first_token == 0:
-            result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
+            result.seconds_to_first_token = (
+                asyncio.get_running_loop().time() - start_clock
+            )
 
         text_result.append(chunk.text)
         await do_callbacks(callbacks, chunk.text, name)
@@ -195,8 +202,8 @@ class LLMModel(BaseModel):
             name=name,
             prompt=messages,
             prompt_count=(
-                sum(self.count_tokens(m["content"]) for m in messages) +
-                sum(self.count_tokens(m["role"]) for m in messages)
+                sum(self.count_tokens(m["content"]) for m in messages)
+                + sum(self.count_tokens(m["role"]) for m in messages)
             ),
         )
 
@@ -208,9 +215,11 @@ class LLMModel(BaseModel):
             completion = await self.achat_iter(messages)  # type: ignore[misc]
             text_result = []
             async for chunk in completion:
-                await self.add_chunk_text(result, callbacks, chunk, text_result, start_clock, name)
+                await self.add_chunk_text(
+                    result, callbacks, chunk, text_result, start_clock, name
+                )
             output = "".join(text_result)
-    
+
         usage = chunk.prompt_tokens, chunk.completion_tokens
         return await self.get_result(usage, result, output, start_clock)
 
@@ -254,18 +263,19 @@ class LLMModel(BaseModel):
             completion = self.acomplete_iter(formatted_prompt)
             text_result = []
             async for chunk in completion:
-                await self.add_chunk_text(result, callbacks, chunk, text_result, start_clock, name)
+                await self.add_chunk_text(
+                    result, callbacks, chunk, text_result, start_clock, name
+                )
             output = "".join(text_result)
-        
+
         usage = chunk.prompt_tokens, chunk.completion_tokens
         return await self.get_result(usage, result, output, start_clock)
-    
 
     @model_validator(mode="after")
     def set_model_name(self) -> Self:
-        if (
-            self.name != "unknown" and
-            self.config.get("model", "unknown") in ("gpt-3.5-turbo", None)
+        if self.name != "unknown" and self.config.get("model", "unknown") in (
+            "gpt-3.5-turbo",
+            None,
         ):
             self.config["model"] = self.name
         elif "model" in self.config and self.name == "unknown":
@@ -273,7 +283,7 @@ class LLMModel(BaseModel):
         # note we do not consider case where both are set
         # because that could be true if the model is fine-tuned
         return self
-    
+
     async def acomplete(self, prompt: str) -> Chunk:
         """Return the completion as string and the number of tokens in the prompt and completion."""
         raise NotImplementedError
@@ -310,7 +320,9 @@ class LLMModel(BaseModel):
     # > `required` means the model must call one or more tools.
     TOOL_CHOICE_REQUIRED: ClassVar[str] = "required"
 
-    async def handle_callbacks(self, tools, n, chat_kwargs, prompt, callbacks, messages, start_clock, results):
+    async def handle_callbacks(
+        self, tools, n, chat_kwargs, prompt, callbacks, messages, start_clock, results
+    ):
         if tools:
             raise NotImplementedError("Using tools with callbacks is not supported")
         if n > 1:
@@ -321,7 +333,7 @@ class LLMModel(BaseModel):
         stream_completion = await self.achat_iter(messages, **chat_kwargs)
         role = "assistant"
         text_result = []
-        
+
         async for chunk in stream_completion:
             delta = chunk.choices[0].delta
             role = delta.role or role
@@ -332,7 +344,9 @@ class LLMModel(BaseModel):
                 continue
 
             if result.seconds_to_first_token == 0:
-                result.seconds_to_first_token = asyncio.get_running_loop().time() - start_clock
+                result.seconds_to_first_token = (
+                    asyncio.get_running_loop().time() - start_clock
+                )
 
             text_result.append(delta.content)
             await do_callbacks(callbacks, delta.content)
@@ -346,7 +360,9 @@ class LLMModel(BaseModel):
         result.messages = [Message(role=role, content=output)]
         results.append(result)
 
-    async def handle_no_callbacks(self, tools, chat_kwargs, prompt, results, output_type):
+    async def handle_no_callbacks(
+        self, tools, chat_kwargs, prompt, results, output_type
+    ):
         completion: litellm.ModelResponse = await self.achat(prompt, **chat_kwargs)
         if output_type:
             validate_json_completion(completion, output_type)
@@ -450,9 +466,13 @@ class LLMModel(BaseModel):
         results: list[LLMResult] = []
 
         if callbacks:
-            await self.handle_callbacks(tools, n, chat_kwargs, prompt, callbacks, messages, start_clock, results)
+            await self.handle_callbacks(
+                tools, n, chat_kwargs, prompt, callbacks, messages, start_clock, results
+            )
         else:
-            await self.handle_no_callbacks(tools, chat_kwargs, prompt, results, output_type)
+            await self.handle_no_callbacks(
+                tools, chat_kwargs, prompt, results, output_type
+            )
 
         if not results:
             # This happens in unit tests. We should probably not keep this block around
