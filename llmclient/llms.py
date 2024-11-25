@@ -583,14 +583,3 @@ class LiteLLMModel(LLMModel):
         )
         return await tool_selector(*selection_args, **selection_kwargs)
 
-
-class LLMBatchModel(BaseModel): ...
-
-
-class LiteLLMBatchModel(LLMBatchModel): ...
-
-
-class OpenAILLMBatchModel(LLMBatchModel): ...
-
-
-class AnthropicLLMBatchModel(LLMBatchModel): ...
