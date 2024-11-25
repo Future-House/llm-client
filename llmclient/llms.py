@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 import functools
-import json
 from abc import ABC
 from collections.abc import (
     AsyncGenerator,
@@ -14,17 +13,13 @@ from collections.abc import (
 from inspect import isasyncgenfunction, signature
 from typing import (
     Any,
-    ClassVar,
-    Self,
     TypeVar,
     cast,
 )
+
 import litellm
 from aviary.core import (
-    Message,
-    Tool,
     ToolRequestMessage,
-    ToolsAdapter,
     ToolSelector,
 )
 from pydantic import (
@@ -47,7 +42,6 @@ from llmclient.prompts import default_system_prompt
 from llmclient.rate_limiter import GLOBAL_LIMITER
 from llmclient.types import Chunk, LLMResult
 from llmclient.utils import is_coroutine_callable
-
 
 if not IS_PYTHON_BELOW_312:
     _DeploymentTypedDictValidator = TypeAdapter(
@@ -131,7 +125,6 @@ def get_litellm_retrying_config(timeout: float = 60.0) -> dict[str, Any]:
     return {"num_retries": 3, "timeout": timeout}
 
 
-
 class LLMModel(ABC, BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
@@ -153,7 +146,7 @@ class LLMModel(ABC, BaseModel):
         """Return the completion as string and the number of tokens in the prompt and completion."""
         raise NotImplementedError
 
-    async def acomplete_iter(self, prompt: str) -> AsyncIterable[Chunk]:  # noqa: ARG002
+    async def acomplete_iter(self, prompt: str) -> AsyncIterable[Chunk]:
         """Return an async generator that yields chunks of the completion.
 
         Only the last tuple will be non-zero.
@@ -167,7 +160,7 @@ class LLMModel(ABC, BaseModel):
         raise NotImplementedError
 
     async def achat_iter(
-        self, messages: Iterable[dict[str, str]]  # noqa: ARG002
+        self, messages: Iterable[dict[str, str]]
     ) -> AsyncIterable[Chunk]:
         """Return an async generator that yields chunks of the completion.
 
@@ -591,25 +584,13 @@ class LiteLLMModel(LLMModel):
         return await tool_selector(*selection_args, **selection_kwargs)
 
 
+class LLMBatchModel(BaseModel): ...
 
 
+class LiteLLMBatchModel(LLMBatchModel): ...
 
 
+class OpenAILLMBatchModel(LLMBatchModel): ...
 
 
-
-class LLMBatchModel(BaseModel):
-    ...
-
-
-class LiteLLMBatchModel(LLMBatchModel):
-    ...
-
-
-class OpenAILLMBatchModel(LLMBatchModel):
-    ...
-
-
-class AnthropicLLMBatchModel(LLMBatchModel):
-    ...
-
+class AnthropicLLMBatchModel(LLMBatchModel): ...

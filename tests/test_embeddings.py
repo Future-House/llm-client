@@ -30,7 +30,7 @@ class TestLiteLLMEmbeddingModel:
             "tiktoken.encoding_for_model",
             return_value=mocker.Mock(
                 encode_ordinary_batch=lambda texts: [[1] * 1000 for _ in texts],
-                decode=lambda tokens: "truncated text" # type: ignore[arg-type]
+                decode=lambda text: "truncated text",  # noqa: ARG005
             ),
         )
         truncated_texts = embedding_model._truncate_if_large(texts)

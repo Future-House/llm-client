@@ -584,6 +584,199 @@ wheels = [
 ]
 
 [[package]]
+name = "fh-llm-client"
+version = "0.1.dev27+gf57981b.d20241125"
+source = { editable = "." }
+dependencies = [
+    { name = "aiofiles" },
+    { name = "coredis" },
+    { name = "dm-tree" },
+    { name = "fhaviary" },
+    { name = "httpx" },
+    { name = "limits" },
+    { name = "litellm" },
+    { name = "networkx", extra = ["default"] },
+    { name = "numpy" },
+    { name = "pydantic" },
+    { name = "pymupdf" },
+    { name = "tenacity" },
+    { name = "tiktoken" },
+    { name = "tqdm" },
+    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
+    { name = "usearch" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "fastapi" },
+    { name = "fhaviary", extra = ["xml"] },
+    { name = "ipython" },
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pydantic" },
+    { name = "pydot" },
+    { name = "pylint" },
+    { name = "pylint-pydantic" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-mock" },
+    { name = "pytest-recording" },
+    { name = "pytest-rerunfailures" },
+    { name = "pytest-subtests" },
+    { name = "pytest-sugar" },
+    { name = "pytest-timer", extra = ["colorama"] },
+    { name = "pytest-xdist" },
+    { name = "python-dotenv" },
+    { name = "refurb" },
+    { name = "rich" },
+    { name = "sentence-transformers" },
+    { name = "torch" },
+    { name = "tqdm" },
+    { name = "types-aiofiles" },
+    { name = "types-tqdm" },
+    { name = "wandb" },
+]
+local = [
+    { name = "sentence-transformers" },
+]
+monitor = [
+    { name = "wandb" },
+]
+nn = [
+    { name = "torch" },
+]
+rich = [
+    { name = "rich" },
+    { name = "tqdm" },
+]
+server = [
+    { name = "fastapi" },
+]
+typing = [
+    { name = "types-aiofiles" },
+    { name = "types-tqdm" },
+]
+visualization = [
+    { name = "pydot" },
+]
+
+[package.dev-dependencies]
+codeflash = [
+    { name = "codeflash" },
+    { name = "fastapi" },
+    { name = "fhaviary", extra = ["xml"] },
+    { name = "ipython" },
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pydantic" },
+    { name = "pydot" },
+    { name = "pylint" },
+    { name = "pylint-pydantic" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-mock" },
+    { name = "pytest-recording" },
+    { name = "pytest-rerunfailures" },
+    { name = "pytest-subtests" },
+    { name = "pytest-sugar" },
+    { name = "pytest-timer", extra = ["colorama"] },
+    { name = "pytest-xdist" },
+    { name = "python-dotenv" },
+    { name = "refurb" },
+    { name = "rich" },
+    { name = "sentence-transformers" },
+    { name = "torch" },
+    { name = "tqdm" },
+    { name = "types-aiofiles" },
+    { name = "types-tqdm" },
+    { name = "wandb" },
+]
+dev = [
+    { name = "fastapi" },
+    { name = "fhaviary", extra = ["xml"] },
+    { name = "ipython" },
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pydantic" },
+    { name = "pydot" },
+    { name = "pylint" },
+    { name = "pylint-pydantic" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-mock" },
+    { name = "pytest-recording" },
+    { name = "pytest-rerunfailures" },
+    { name = "pytest-subtests" },
+    { name = "pytest-sugar" },
+    { name = "pytest-timer", extra = ["colorama"] },
+    { name = "pytest-xdist" },
+    { name = "python-dotenv" },
+    { name = "refurb" },
+    { name = "rich" },
+    { name = "sentence-transformers" },
+    { name = "torch" },
+    { name = "tqdm" },
+    { name = "types-aiofiles" },
+    { name = "types-tqdm" },
+    { name = "wandb" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiofiles" },
+    { name = "coredis" },
+    { name = "dm-tree" },
+    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.109" },
+    { name = "fh-llm-client", extras = ["local", "monitor", "nn", "rich", "server", "typing", "visualization"], marker = "extra == 'dev'" },
+    { name = "fhaviary", specifier = ">=0.8.2" },
+    { name = "fhaviary", extras = ["xml"], marker = "extra == 'dev'" },
+    { name = "httpx" },
+    { name = "ipython", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "limits" },
+    { name = "litellm", specifier = ">=1.44" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
+    { name = "networkx", extras = ["default"], specifier = "~=3.4" },
+    { name = "numpy" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
+    { name = "pydantic", specifier = "~=2.0" },
+    { name = "pydantic", marker = "extra == 'dev'", specifier = "~=2.9" },
+    { name = "pydot", marker = "extra == 'visualization'", specifier = ">=3.0.1" },
+    { name = "pylint", marker = "extra == 'dev'", specifier = ">=3.2" },
+    { name = "pylint-pydantic", marker = "extra == 'dev'" },
+    { name = "pymupdf", specifier = ">=1.24.12" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'" },
+    { name = "pytest-mock", marker = "extra == 'dev'" },
+    { name = "pytest-recording", marker = "extra == 'dev'" },
+    { name = "pytest-rerunfailures", marker = "extra == 'dev'" },
+    { name = "pytest-subtests", marker = "extra == 'dev'" },
+    { name = "pytest-sugar", marker = "extra == 'dev'" },
+    { name = "pytest-timer", extras = ["colorama"], marker = "extra == 'dev'" },
+    { name = "pytest-xdist", marker = "extra == 'dev'" },
+    { name = "python-dotenv", marker = "extra == 'dev'" },
+    { name = "refurb", marker = "extra == 'dev'", specifier = ">=2" },
+    { name = "rich", marker = "extra == 'rich'" },
+    { name = "sentence-transformers", marker = "extra == 'local'" },
+    { name = "tenacity" },
+    { name = "tiktoken", specifier = ">=0.4.0" },
+    { name = "torch", marker = "extra == 'nn'", specifier = ">=2.2" },
+    { name = "tqdm" },
+    { name = "tqdm", marker = "extra == 'rich'", specifier = ">=4.56" },
+    { name = "types-aiofiles", marker = "extra == 'typing'" },
+    { name = "types-tqdm", marker = "extra == 'typing'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
+    { name = "usearch", specifier = ">=2.13" },
+    { name = "wandb", marker = "extra == 'monitor'" },
+]
+
+[package.metadata.requires-dev]
+codeflash = [
+    { name = "codeflash", specifier = ">=0.7" },
+    { name = "fh-llm-client", extras = ["dev"] },
+]
+dev = [{ name = "fh-llm-client", extras = ["dev"] }]
+
+[[package]]
 name = "fhaviary"
 version = "0.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1132,199 +1325,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/8b/d7/ed47df9f2de3c1995
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fb/5b/b6eb2098ed289f99abb55ab966b4f318a467294c218ad846e96ba72949b0/litellm-1.48.10-py3-none-any.whl", hash = "sha256:752efd59747a0895f4695d025c66f0b2258d80a61175f7cfa41dbe4894ef95e1", size = 6238318 },
 ]
-
-[[package]]
-name = "llm-client"
-version = "0.1.dev25+g970e60a.d20241125"
-source = { editable = "." }
-dependencies = [
-    { name = "aiofiles" },
-    { name = "coredis" },
-    { name = "dm-tree" },
-    { name = "fhaviary" },
-    { name = "httpx" },
-    { name = "limits" },
-    { name = "litellm" },
-    { name = "networkx", extra = ["default"] },
-    { name = "numpy" },
-    { name = "pydantic" },
-    { name = "pymupdf" },
-    { name = "tenacity" },
-    { name = "tiktoken" },
-    { name = "tqdm" },
-    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
-    { name = "usearch" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "fastapi" },
-    { name = "fhaviary", extra = ["xml"] },
-    { name = "ipython" },
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pydantic" },
-    { name = "pydot" },
-    { name = "pylint" },
-    { name = "pylint-pydantic" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
-    { name = "pytest-recording" },
-    { name = "pytest-rerunfailures" },
-    { name = "pytest-subtests" },
-    { name = "pytest-sugar" },
-    { name = "pytest-timer", extra = ["colorama"] },
-    { name = "pytest-xdist" },
-    { name = "python-dotenv" },
-    { name = "refurb" },
-    { name = "rich" },
-    { name = "sentence-transformers" },
-    { name = "torch" },
-    { name = "tqdm" },
-    { name = "types-aiofiles" },
-    { name = "types-tqdm" },
-    { name = "wandb" },
-]
-local = [
-    { name = "sentence-transformers" },
-]
-monitor = [
-    { name = "wandb" },
-]
-nn = [
-    { name = "torch" },
-]
-rich = [
-    { name = "rich" },
-    { name = "tqdm" },
-]
-server = [
-    { name = "fastapi" },
-]
-typing = [
-    { name = "types-aiofiles" },
-    { name = "types-tqdm" },
-]
-visualization = [
-    { name = "pydot" },
-]
-
-[package.dev-dependencies]
-codeflash = [
-    { name = "codeflash" },
-    { name = "fastapi" },
-    { name = "fhaviary", extra = ["xml"] },
-    { name = "ipython" },
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pydantic" },
-    { name = "pydot" },
-    { name = "pylint" },
-    { name = "pylint-pydantic" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
-    { name = "pytest-recording" },
-    { name = "pytest-rerunfailures" },
-    { name = "pytest-subtests" },
-    { name = "pytest-sugar" },
-    { name = "pytest-timer", extra = ["colorama"] },
-    { name = "pytest-xdist" },
-    { name = "python-dotenv" },
-    { name = "refurb" },
-    { name = "rich" },
-    { name = "sentence-transformers" },
-    { name = "torch" },
-    { name = "tqdm" },
-    { name = "types-aiofiles" },
-    { name = "types-tqdm" },
-    { name = "wandb" },
-]
-dev = [
-    { name = "fastapi" },
-    { name = "fhaviary", extra = ["xml"] },
-    { name = "ipython" },
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pydantic" },
-    { name = "pydot" },
-    { name = "pylint" },
-    { name = "pylint-pydantic" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
-    { name = "pytest-recording" },
-    { name = "pytest-rerunfailures" },
-    { name = "pytest-subtests" },
-    { name = "pytest-sugar" },
-    { name = "pytest-timer", extra = ["colorama"] },
-    { name = "pytest-xdist" },
-    { name = "python-dotenv" },
-    { name = "refurb" },
-    { name = "rich" },
-    { name = "sentence-transformers" },
-    { name = "torch" },
-    { name = "tqdm" },
-    { name = "types-aiofiles" },
-    { name = "types-tqdm" },
-    { name = "wandb" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiofiles" },
-    { name = "coredis" },
-    { name = "dm-tree" },
-    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.109" },
-    { name = "fhaviary", specifier = ">=0.8.2" },
-    { name = "fhaviary", extras = ["xml"], marker = "extra == 'dev'" },
-    { name = "httpx" },
-    { name = "ipython", marker = "extra == 'dev'", specifier = ">=8" },
-    { name = "limits" },
-    { name = "litellm", specifier = ">=1.44" },
-    { name = "llm-client", extras = ["local", "monitor", "nn", "rich", "server", "typing", "visualization"], marker = "extra == 'dev'" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
-    { name = "networkx", extras = ["default"], specifier = "~=3.4" },
-    { name = "numpy" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
-    { name = "pydantic", specifier = "~=2.0" },
-    { name = "pydantic", marker = "extra == 'dev'", specifier = "~=2.9" },
-    { name = "pydot", marker = "extra == 'visualization'", specifier = ">=3.0.1" },
-    { name = "pylint", marker = "extra == 'dev'", specifier = ">=3.2" },
-    { name = "pylint-pydantic", marker = "extra == 'dev'" },
-    { name = "pymupdf", specifier = ">=1.24.12" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'" },
-    { name = "pytest-mock", marker = "extra == 'dev'" },
-    { name = "pytest-recording", marker = "extra == 'dev'" },
-    { name = "pytest-rerunfailures", marker = "extra == 'dev'" },
-    { name = "pytest-subtests", marker = "extra == 'dev'" },
-    { name = "pytest-sugar", marker = "extra == 'dev'" },
-    { name = "pytest-timer", extras = ["colorama"], marker = "extra == 'dev'" },
-    { name = "pytest-xdist", marker = "extra == 'dev'" },
-    { name = "python-dotenv", marker = "extra == 'dev'" },
-    { name = "refurb", marker = "extra == 'dev'", specifier = ">=2" },
-    { name = "rich", marker = "extra == 'rich'" },
-    { name = "sentence-transformers", marker = "extra == 'local'" },
-    { name = "tenacity" },
-    { name = "tiktoken", specifier = ">=0.4.0" },
-    { name = "torch", marker = "extra == 'nn'", specifier = ">=2.2" },
-    { name = "tqdm" },
-    { name = "tqdm", marker = "extra == 'rich'", specifier = ">=4.56" },
-    { name = "types-aiofiles", marker = "extra == 'typing'" },
-    { name = "types-tqdm", marker = "extra == 'typing'" },
-    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
-    { name = "usearch", specifier = ">=2.13" },
-    { name = "wandb", marker = "extra == 'monitor'" },
-]
-
-[package.metadata.requires-dev]
-codeflash = [
-    { name = "codeflash", specifier = ">=0.7" },
-    { name = "llm-client", extras = ["dev"] },
-]
-dev = [{ name = "llm-client", extras = ["dev"] }]
 
 [[package]]
 name = "lxml"

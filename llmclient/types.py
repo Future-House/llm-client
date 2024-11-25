@@ -5,7 +5,6 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 import litellm
-from aviary.core import Message
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -26,6 +25,7 @@ def set_llm_session_ids(session_id: UUID):
         yield
     finally:
         cvar_session_id.reset(token)
+
 
 class Embeddable(BaseModel):
     embedding: list[float] | None = Field(default=None, repr=False)
@@ -98,4 +98,3 @@ class LLMResult(BaseModel):
             except KeyError:
                 logger.warning(f"Could not find cost for model {self.model}.")
         return 0.0
-    

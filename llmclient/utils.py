@@ -3,7 +3,7 @@ import contextlib
 import io
 import logging
 import logging.config
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from inspect import iscoroutinefunction, isfunction, signature
 from typing import Any
 
@@ -30,7 +30,9 @@ def encode_image_to_base64(img: "np.ndarray") -> str:
     )
 
 
-def prepare_args(func: Callable, chunk: str, name: str | None = None) -> tuple[tuple, dict]:
+def prepare_args(
+    func: Callable, chunk: str, name: str | None = None
+) -> tuple[tuple, dict]:
     with contextlib.suppress(TypeError):
         if "name" in signature(func).parameters:
             return (chunk,), {"name": name}
@@ -51,6 +53,7 @@ def partial_format(value: str, **formats: dict[str, Any]) -> str:
         with contextlib.suppress(KeyError):
             value = value.format(**{template_key: template_value})
     return value
+
 
 def setup_default_logs() -> None:
     """Configure logs to reasonable defaults."""
