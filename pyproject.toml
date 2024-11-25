@@ -5,9 +5,9 @@ requires = ["setuptools>=64", "setuptools_scm>=8"]
 [dependency-groups]
 codeflash = [
     "codeflash>=0.7",  # Pin to keep recent
-    "llm-client[dev]",
+    "fh-llm-client[dev]",
 ]
-dev = ["llm-client[dev]"]
+dev = ["fh-llm-client[dev]"]
 
 [project]
 authors = [
@@ -22,17 +22,19 @@ classifiers = [
     "Programming Language :: Python",
 ]
 dependencies = [
+    "PyMuPDF>=1.24.12",  # For pymupdf.set_messages addition
     "aiofiles",
+    "coredis",
     "dm-tree",
     "fhaviary>=0.8.2",  # For core namespace
     "httpx",
-    "litellm>=1.40.15",  # For LITELLM_LOG addition
+    "limits",
+    "litellm>=1.44",  # For LITELLM_LOG addition
     "networkx[default]~=3.4",  # Pin for pydot fix
-    "numpy>=1.20",  # For numpy.typing
-    "openai>=1",
+    "numpy",
     "pydantic~=2.0",
     "tenacity",
-    "tiktoken",
+    "tiktoken>=0.4.0",
     "tqdm",
     "typing-extensions; python_version <= '3.11'",  # for typing.override
     "usearch>=2.13",  # For py.typed
@@ -40,7 +42,7 @@ dependencies = [
 description = "Agent framework for constructing language model agents and training on constructive tasks."
 dynamic = ["version"]
 license = {file = "LICENSE"}
-name = "llm-client"
+name = "fh-llm-client"
 readme = "README.md"
 requires-python = ">=3.11"
 
@@ -48,15 +50,14 @@ requires-python = ">=3.11"
 dev = [
     "fhaviary[xml]",
     "ipython>=8",  # Pin to keep recent
-    "llm-client[monitor,nn,rich,server,typing,visualization]",
-    "litellm!=1.49.4,!=1.49.5,!=1.49.6",  # For https://github.com/BerriAI/litellm/issues/6216
+    "fh-llm-client[monitor,nn,rich,server,typing,visualization,local]",
     "mypy>=1.8",  # Pin for mutable-override
-    "openai<1.47",  # Pin for https://github.com/BerriAI/litellm/issues/5854
     "pre-commit>=3.4",  # Pin to keep recent
     "pydantic~=2.9",  # Pydantic 2.9 changed JSON schema exports 'allOf', so ensure tests match
     "pylint-pydantic",
     "pylint>=3.2",  # Pin to keep recent
     "pytest-asyncio",
+    "pytest-mock",
     "pytest-mock",
     "pytest-recording",
     "pytest-rerunfailures",
@@ -65,7 +66,11 @@ dev = [
     "pytest-timer[colorama]",
     "pytest-xdist",
     "pytest>=8",  # Pin to keep recent
+    "python-dotenv",
     "refurb>=2",  # Pin to keep recent
+]
+local = [
+    "sentence-transformers",
 ]
 monitor = [
     "wandb",
@@ -274,7 +279,7 @@ filterwarnings = [
 # files or test ids are given in the command line when executing pytest from the rootdir
 # directory. File system paths may use shell-style wildcards, including the recursive **
 # pattern.
-testpaths = ["src", "tests"]
+testpaths = ["tests"]
 
 [tool.refurb]
 enable_all = true
@@ -292,11 +297,7 @@ ignore = [
 
 [tool.ruff]
 # Line length to use when enforcing long-lines violations (like `E501`).
-line-length = 88
-# The minimum Python version to target, e.g., when considering automatic code
-# upgrades, like rewriting type annotations. Ruff will not propose changes
-# using features that are not available in the given version.
-target-version = "py311"
+line-length = 120
 # Enable application of unsafe fixes.
 unsafe-fixes = true
 
@@ -386,9 +387,9 @@ ignore = [
     "S311",  # Ok to use python random
     "SLF001",  # Overly pedantic
     "T201",  # Overly pedantic
-    "TCH001",  # TCH001, TCH002, TCH003: don't care to enforce type checking blocks
-    "TCH002",
-    "TCH003",
+    "TC001",  # TCH001, TCH002, TCH003: don't care to enforce type checking blocks
+    "TC002",
+    "TC003",
     "TD002",  # Don't care for TODO author
     "TD003",  # Don't care for TODO links
     "TRY003",  # Overly pedantic
@@ -412,6 +413,7 @@ mypy-init-return = true
     "F841",  # Tests can have unused locals
     "N802",  # Tests function names can match class names
     "PLR2004",  # Tests can have magic values
+    "S301",  # can test pickle
 ]
 "docs/**.ipynb" = [
     "PLE1142",  # allow async
@@ -432,10 +434,10 @@ max-line-length = 120
 convention = "google"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["llmclient"]
 
 [tool.setuptools_scm]
-version_file = "src/llmclient/version.py"
+version_file = "llmclient/version.py"
 
 [tool.tomlsort]
 all = true
