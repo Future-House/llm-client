@@ -436,6 +436,7 @@ convention = "google"
 
 [tool.setuptools.packages.find]
 where = [".", "llmclient"]
+exclude = ["tests"]
 
 [tool.setuptools_scm]
 version_file = "llmclient/version.py"
