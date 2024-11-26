@@ -585,7 +585,7 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.1.dev27+gf57981b.d20241125"
+version = "0.1.dev31+gdac5c5f.d20241126"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

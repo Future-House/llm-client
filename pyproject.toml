@@ -40,10 +40,9 @@ dependencies = [
     "usearch>=2.13",  # For py.typed
 ]
 description = "A client to provide LLM responses for FutureHouse applications."
-# dynamic = ["version"]
+dynamic = ["version"]
 license = {file = "LICENSE"}
 name = "fh-llm-client"
-version = "0.0.0"
 readme = "README.md"
 requires-python = ">=3.11"
 
@@ -440,7 +439,6 @@ exclude = ["tests"]
 
 [tool.setuptools_scm]
 version_file = "llmclient/version.py"
-local_scheme = "no-local-version" 
 
 [tool.tomlsort]
 all = true
