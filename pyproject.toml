@@ -39,10 +39,11 @@ dependencies = [
     "typing-extensions; python_version <= '3.11'",  # for typing.override
     "usearch>=2.13",  # For py.typed
 ]
-description = "Agent framework for constructing language model agents and training on constructive tasks."
-dynamic = ["version"]
+description = "A client to provide LLM responses for FutureHouse applications."
+# dynamic = ["version"]
 license = {file = "LICENSE"}
 name = "fh-llm-client"
+version = "0.0.0"
 readme = "README.md"
 requires-python = ">=3.11"
 
@@ -434,10 +435,11 @@ max-line-length = 120
 convention = "google"
 
 [tool.setuptools.packages.find]
-where = ["llmclient"]
+where = [".", "llmclient"]
 
 [tool.setuptools_scm]
 version_file = "llmclient/version.py"
+local_scheme = "no-local-version" 
 
 [tool.tomlsort]
 all = true
