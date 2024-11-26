@@ -434,8 +434,7 @@ max-line-length = 120
 convention = "google"
 
 [tool.setuptools.packages.find]
-where = [".", "llmclient"]
-exclude = ["tests"]
+where = ["llmclient*"]
 
 [tool.setuptools_scm]
 version_file = "llmclient/version.py"
