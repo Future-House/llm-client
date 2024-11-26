@@ -53,7 +53,7 @@ dev = [
     "ipython>=8",  # Pin to keep recent
     "mypy>=1.8",  # Pin for mutable-override
     "pre-commit>=3.4",  # Pin to keep recent
-    "pydantic~=2.9",  # Pydantic 2.9 changed JSON schema exports 'allOf', so ensure tests match
+    "pydantic~=2.0",
     "pylint-pydantic",
     "pytest-asyncio",
     "pytest-mock",

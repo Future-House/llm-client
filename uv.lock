@@ -585,7 +585,7 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.1.dev36+g9714b45.d20241126"
+version = "0.1.dev37+g63f57b5.d20241126"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -736,7 +736,7 @@ requires-dist = [
     { name = "numpy" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
     { name = "pydantic", specifier = "~=2.0" },
-    { name = "pydantic", marker = "extra == 'dev'", specifier = "~=2.9" },
+    { name = "pydantic", marker = "extra == 'dev'", specifier = "~=2.0" },
     { name = "pydot", marker = "extra == 'visualization'", specifier = ">=3.0.1" },
     { name = "pylint-pydantic", marker = "extra == 'dev'" },
     { name = "pymupdf", specifier = ">=1.24.12" },
