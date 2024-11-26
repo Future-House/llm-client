@@ -582,4 +582,3 @@ class LiteLLMModel(LLMModel):
             model_name=self.name, acompletion=self.router.acompletion
         )
         return await tool_selector(*selection_args, **selection_kwargs)
-

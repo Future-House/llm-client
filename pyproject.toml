@@ -55,7 +55,6 @@ dev = [
     "pre-commit>=3.4",  # Pin to keep recent
     "pydantic~=2.9",  # Pydantic 2.9 changed JSON schema exports 'allOf', so ensure tests match
     "pylint-pydantic",
-    "pylint>=3.2",  # Pin to keep recent
     "pytest-asyncio",
     "pytest-mock",
     "pytest-mock",
@@ -237,6 +236,7 @@ disable = [
     "too-many-positional-arguments",  # Don't care to enforce this
     "too-many-return-statements",  # Rely on ruff PLR0911 for this
     "too-many-statements",  # Rely on ruff PLR0915 for this
+    "undefined-loop-variable",  # Don't care to enforce this
     "ungrouped-imports",  # Rely on ruff I001 for this
     "unidiomatic-typecheck",  # Rely on ruff E721 for this
     "unreachable",  # Rely on mypy unreachable for this
@@ -263,9 +263,6 @@ score = false
 min-similarity-lines = 12
 
 [tool.pytest.ini_options]
-# Add the specified OPTS to the set of command line arguments as if they had been
-# specified by the user.
-addopts = "--doctest-modules"
 # Sets a list of filters and actions that should be taken for matched warnings.
 # By default all warnings emitted during the test session will be displayed in
 # a summary at the end of the test session.
@@ -273,7 +270,9 @@ filterwarnings = [
     "ignore:Support for class-based `config` is deprecated, use ConfigDict instead",  # SEE: https://github.com/BerriAI/litellm/issues/5648
     "ignore:The `dict` method is deprecated; use `model_dump` instead",  # SEE: https://github.com/BerriAI/litellm/issues/5987
     "ignore:Use 'content=<...>' to upload raw bytes/text content:DeprecationWarning",  # SEE: https://github.com/BerriAI/litellm/issues/5986
+    "ignore:builtin type (SwigPyPacked|SwigPyObject|swigvarlink) has no __module__:DeprecationWarning:importlib._bootstrap",  # SEE: https://github.com/pymupdf/PyMuPDF/issues/3931 --> https://github.com/swig/swig/issues/2881#issuecomment-2332652634
     'ignore:open_text is deprecated. Use files\(\) instead:DeprecationWarning',  # SEE: https://github.com/BerriAI/litellm/issues/5647
+    'ignore:pkg_resources is deprecated as an API.:DeprecationWarning:pybtex',  # SEE: https://bitbucket.org/pybtex-devs/pybtex/issues/169/replace-pkg_resources-with
 ]
 # List of directories that should be searched for tests when no specific directories,
 # files or test ids are given in the command line when executing pytest from the rootdir
@@ -434,9 +433,9 @@ max-line-length = 120
 convention = "google"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["llmclient"]
 exclude = ["tests"]
+include = ["llmclient"]
+where = ["."]
 
 [tool.setuptools_scm]
 version_file = "llmclient/version.py"

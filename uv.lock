@@ -585,7 +585,7 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.1.dev31+gdac5c5f.d20241126"
+version = "0.1.dev36+g9714b45.d20241126"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -615,7 +615,6 @@ dev = [
     { name = "pre-commit" },
     { name = "pydantic" },
     { name = "pydot" },
-    { name = "pylint" },
     { name = "pylint-pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -670,7 +669,6 @@ codeflash = [
     { name = "pre-commit" },
     { name = "pydantic" },
     { name = "pydot" },
-    { name = "pylint" },
     { name = "pylint-pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -699,7 +697,6 @@ dev = [
     { name = "pre-commit" },
     { name = "pydantic" },
     { name = "pydot" },
-    { name = "pylint" },
     { name = "pylint-pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -741,7 +738,6 @@ requires-dist = [
     { name = "pydantic", specifier = "~=2.0" },
     { name = "pydantic", marker = "extra == 'dev'", specifier = "~=2.9" },
     { name = "pydot", marker = "extra == 'visualization'", specifier = ">=3.0.1" },
-    { name = "pylint", marker = "extra == 'dev'", specifier = ">=3.2" },
     { name = "pylint-pydantic", marker = "extra == 'dev'" },
     { name = "pymupdf", specifier = ">=1.24.12" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
