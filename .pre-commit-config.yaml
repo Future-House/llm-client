@@ -19,24 +19,18 @@ repos:
       - id: mixed-line-ending
       - id: trailing-whitespace
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.1
+    rev: v0.8.0
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
-      - id: ruff-format
   - repo: https://github.com/rbubley/mirrors-prettier
     rev: v3.3.3
     hooks:
       - id: prettier
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.5.0
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 24.10.0
     hooks:
-      - id: detect-secrets
-        additional_dependencies: [".[word_list]"]
-        args:
-          - --word-list=.secrets.allowlist
-          - --exclude-files=.secrets.baseline$
-        exclude: tests/cassettes
+      - id: black
   - repo: https://github.com/jumanjihouse/pre-commit-hooks
     rev: 3.0.0
     hooks:
@@ -48,7 +42,7 @@ repos:
         additional_dependencies: [".[toml]"]
         exclude_types: [jupyter]
   - repo: https://github.com/pappasam/toml-sort
-    rev: v0.23.1
+    rev: v0.24.2
     hooks:
       - id: toml-sort-fix
   - repo: https://github.com/srstevenson/nb-clean
@@ -57,29 +51,45 @@ repos:
       - id: nb-clean
         args: [--preserve-cell-outputs, --remove-empty-cells]
   - repo: https://github.com/abravalheri/validate-pyproject
-    rev: v0.22
+    rev: v0.23
     hooks:
       - id: validate-pyproject
         additional_dependencies:
-          - "validate-pyproject-schema-store[all]>=2024.08.19" # For Ruff renaming RUF025 to C420
+          - "validate-pyproject-schema-store[all]>=2024.06.24" # For Ruff renaming RUF025 to C420
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.4.29
+    rev: 0.4.30
     hooks:
       - id: uv-lock
+  - repo: https://github.com/jsh9/markdown-toc-creator
+    rev: 0.0.8
+    hooks:
+      - id: markdown-toc-creator
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.13.0
     hooks:
       - id: mypy
+        args: [--pretty, --ignore-missing-imports]
         additional_dependencies:
-          - fastapi>=0.109 # Match pyproject.toml
+          - aiohttp
+          - PyMuPDF>=1.24.12
+          - anyio
+          - coredis
+          - fhaviary[llm]>=0.10.0 # Match pyproject.toml
+          - ldp>=0.12 # Match pyproject.toml
+          - html2text
+          - litellm>=1.44 # Match pyproject.toml
           - httpx
-          - litellm>=1.40.15,!=1.49.4,!=1.49.5,!=1.49.6 # Match pyproject.toml
-          - numpy>=1.20 # Match pyproject.toml
-          - openai>=1,<1.47 # Match pyproject.toml
+          - limits
+          - pybtex
+          - numpy
+          - pandas-stubs
           - pydantic~=2.0 # Match pyproject.toml
+          - pydantic-settings
+          - rich
+          - tantivy
           - tenacity
-          - torch
-          - types-aiofiles
-          - types-tqdm
-          - usearch>=2.13 # Match pyproject.toml
-          - wandb
+          - tiktoken>=0.4.0 # Match pyproject.toml
+          - types-setuptools
+          - types-PyYAML
+          - sentence-transformers
+          - pyzotero

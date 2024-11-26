@@ -1,0 +1,64 @@
+name: Lint and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' # pre-commit-ci/lite-action only runs here
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12] # Our min and max supported Python versions
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # For setuptools-scm, replace with fetch-tags after https://github.com/actions/checkout/issues/1471
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: pre-commit/action@v3.0.1
+      - uses: pre-commit-ci/lite-action@v1.1.0
+        if: always()
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11] # Our min supported Python version
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python pin ${{ matrix.python-version }}
+      - uses: hynek/build-and-inspect-python-package@v2
+      - run: uv sync --python-preference=only-managed
+      - run: uv run refurb llmclient tests
+      - run: uv run pylint llmclient
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12] # Our min and max supported Python versions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python pin ${{ matrix.python-version }}
+      - run: uv sync --python-preference=only-managed
+      - name: Cache datasets
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface/datasets
+          key: ${{ runner.os }}-datasets-${{ hashFiles('paperqa') }}
+          restore-keys: ${{ runner.os }}-datasets-
+      - run: uv run pytest -n auto
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
+          CROSSREF_API_KEY: ${{ secrets.CROSSREF_API_KEY }}
