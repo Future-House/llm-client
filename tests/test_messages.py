@@ -2,8 +2,16 @@ import json
 
 import numpy as np
 import pytest
+from aviary.core import (
+    ToolCall,
+    ToolCallFunction,
+)
 
-from llmclient.messages import Message
+from llmclient.messages import (
+    Message,
+    ToolRequestMessage,
+    ToolResponseMessage,
+)
 
 
 class TestMessage:
@@ -20,6 +28,50 @@ class TestMessage:
             (Message(), ""),
             (Message(content="stub"), "stub"),
             (Message(role="system", content="stub"), "stub"),
+            (ToolRequestMessage(), ""),
+            (ToolRequestMessage(content="stub"), "stub"),
+            (
+                ToolRequestMessage(
+                    content="stub",
+                    tool_calls=[
+                        ToolCall(
+                            id="1",
+                            function=ToolCallFunction(name="name", arguments={"hi": 5}),
+                        )
+                    ],
+                ),
+                "Tool request message 'stub' for tool calls: name(hi='5') [id=1]",
+            ),
+            (
+                ToolRequestMessage(
+                    tool_calls=[
+                        ToolCall(
+                            id="1",
+                            function=ToolCallFunction(name="foo1", arguments={"hi": 5}),
+                        ),
+                        ToolCall(
+                            id="2",
+                            function=ToolCallFunction(name="foo2", arguments={}),
+                        ),
+                        ToolCall(
+                            id="3",
+                            function=ToolCallFunction(name="foo1", arguments=""),
+                        ),
+                        ToolCall(
+                            id="4",
+                            function=ToolCallFunction(name="foo2", arguments=None),
+                        ),
+                    ],
+                ),
+                (
+                    "Tool request message '' for tool calls: "
+                    "foo1(hi='5') [id=1]; foo2() [id=2]; foo1() [id=3]; foo2() [id=4]"
+                ),
+            ),
+            (
+                ToolResponseMessage(content="stub", name="name", tool_call_id="1"),
+                "Tool response message 'stub' for tool call ID 1 of tool 'name'",
+            ),
             (
                 Message(
                     content=[
@@ -76,3 +128,36 @@ class TestMessage:
         )
         assert specialized_content[text_idx]["text"] == message_text
         assert "image_url" in specialized_content[image_idx]
+
+
+class TestToolRequestMessage:
+    def test_from_request(self) -> None:
+        trm = ToolRequestMessage(
+            content="stub",
+            tool_calls=[
+                ToolCall(
+                    id="1",
+                    function=ToolCallFunction(name="name1", arguments={"hi": 5}),
+                ),
+                ToolCall(id="2", function=ToolCallFunction(name="name2", arguments={})),
+            ],
+        )
+        assert ToolResponseMessage.from_request(trm, ("stub1", "stub2")) == [
+            ToolResponseMessage(content="stub1", name="name1", tool_call_id="1"),
+            ToolResponseMessage(content="stub2", name="name2", tool_call_id="2"),
+        ]
+
+    def test_append_text(self) -> None:
+        trm = ToolRequestMessage(
+            content="stub", tool_calls=[ToolCall.from_name("stub_name")]
+        )
+        trm_inplace = trm.append_text("text")
+        assert trm.content == trm_inplace.content == "stub\ntext"
+        # Check append performs an in-place change by default
+        assert trm.tool_calls[0] is trm_inplace.tool_calls[0]
+
+        trm_copy = trm.append_text("text", inplace=False)
+        assert trm_copy.content == "stub\ntext\ntext"
+        # Check append performs a deep copy when not inplace
+        assert trm.content == "stub\ntext"
+        assert trm.tool_calls[0] is not trm_copy.tool_calls[0]

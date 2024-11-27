@@ -24,7 +24,7 @@ def encode_image_to_base64(img: "np.ndarray") -> str:
     except ImportError as e:
         raise ImportError(
             "Image processing requires the 'image' extra for 'Pillow'. Please:"
-            " `pip install aviary[image]`."
+            " `pip install fh-llm-client[image]`."
         ) from e
 
     image = Image.fromarray(img)

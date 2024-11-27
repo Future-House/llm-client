@@ -1,3 +1,9 @@
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)]()
+
+<!-- [![tests](https://github.com/Future-House/llm-client/actions/workflows/test.yaml/badge.svg)](https://github.com/Future-House/llm-client) -->
+
+[![PyPI version](https://badge.fury.io/py/fh-llm-client.svg)](https://badge.fury.io/py/fh-llm-client)
+
 # llm-client
 
 Central FutureHouse LLM client library.

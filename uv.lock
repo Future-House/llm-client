@@ -585,7 +585,7 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.1.dev28+g7a3a698.d20241127"
+version = "0.1.dev29+g707f996.d20241127"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -634,6 +634,9 @@ dev = [
     { name = "types-aiofiles" },
     { name = "types-tqdm" },
     { name = "wandb" },
+]
+image = [
+    { name = "pillow" },
 ]
 local = [
     { name = "sentence-transformers" },
@@ -734,6 +737,7 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
     { name = "networkx", extras = ["default"], specifier = "~=3.4" },
     { name = "numpy" },
+    { name = "pillow", marker = "extra == 'image'" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
     { name = "pydantic", specifier = "~=2.0,>=2.10.1,<2.10.2" },
     { name = "pydantic", marker = "extra == 'dev'", specifier = "~=2.0" },

@@ -68,6 +68,9 @@ dev = [
     "python-dotenv",
     "refurb>=2",  # Pin to keep recent
 ]
+image = [
+    "Pillow",
+]
 local = [
     "sentence-transformers",
 ]
