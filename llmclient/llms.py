@@ -22,11 +22,6 @@ from typing import (
 )
 
 import litellm
-from aviary.core import (
-    Tool,
-    ToolsAdapter,
-    ToolSelector,
-)
 from pydantic import (
     BaseModel,
     ConfigDict,
