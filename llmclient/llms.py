@@ -22,9 +22,7 @@ from typing import (
 
 import litellm
 from aviary.core import (
-    Message,
     Tool,
-    ToolRequestMessage,
     ToolsAdapter,
     ToolSelector,
 )
@@ -44,6 +42,7 @@ from llmclient.constants import (
     IS_PYTHON_BELOW_312,
 )
 from llmclient.exceptions import JSONSchemaValidationError
+from llmclient.messages import Message, ToolRequestMessage
 from llmclient.prompts import default_system_prompt
 from llmclient.rate_limiter import GLOBAL_LIMITER
 from llmclient.types import Chunk, LLMResult
@@ -582,7 +581,10 @@ class LiteLLMModel(LLMModel):
         tool_selector = ToolSelector(
             model_name=self.name, acompletion=self.router.acompletion
         )
-        return await tool_selector(*selection_args, **selection_kwargs)
+        return await tool_selector(*selection_args, **selection_kwargs) # type: ignore[return-value]
+        #TODO : Fix the return type of the function
+        #TODO : It currently returns aviary.tools.base.ToolRequestMessage
+        #TODO : It should return llmclient.messages.ToolRequestMessage once aviary is updated
 
 
 class MultipleCompletionLLMModel(BaseModel):

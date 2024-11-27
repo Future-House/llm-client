@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, ClassVar, Self
+from itertools import starmap
+from typing import ClassVar, Literal, Self, TypeVar
 
+import numpy as np
+from aviary.core import ToolCall
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from llmclient.utils import encode_image_to_base64
 
-if TYPE_CHECKING:
-    from logging import LogRecord
-
-    import numpy as np
+T = TypeVar("T", bound="Message")
 
 
 class Message(BaseModel):
@@ -87,9 +87,7 @@ class Message(BaseModel):
             dump["content"] = json.loads(dump["content"])
         return dump
 
-    def append_text(
-        self, text: str, delim: str = "\n", inplace: bool = True
-    ) -> Message:
+    def append_text(self: T, text: str, delim: str = "\n", inplace: bool = True) -> T:
         """Append text to the content.
 
         Args:
@@ -140,27 +138,73 @@ class Message(BaseModel):
         return cls(role=role, content=content)
 
 
+class ToolRequestMessage(Message):
+    role: Literal["assistant"] = Field(
+        default="assistant", description="Matching LiteLLM structure."
+    )
+    content: str | None = None
+    function_call: None = None
+    tool_calls: list[ToolCall] = Field(
+        default_factory=list,
+        description="List of ToolCalls to make concurrently and independently.",
+    )
+
+    def __str__(self) -> str:
+        if not self.tool_calls:
+            return super().__str__()
+        base_msg = f"Tool request message {self.content or ''!r}"
+        if len(self.tool_calls) == 1:
+            return (
+                f"{base_msg} for tool calls: "
+                f"{self.tool_calls[0]} [id={self.tool_calls[0].id}]"
+            )
+        return f"{base_msg} for tool calls: " + "; ".join(
+            [f"{tc!s} [id={tc.id}]" for tc in self.tool_calls]
+        )
+
+
+class ToolResponseMessage(Message):
+    content: str = Field(
+        description=(
+            "Response message content, required to be a string by OpenAI/Anthropic."
+        ),
+    )
+    role: Literal["tool"] = Field(
+        default="tool", description="Matching LiteLLM structure."
+    )
+    name: str = Field(description="Name of the tool that was called.")
+    tool_call_id: str = Field(
+        description=(
+            "Propagated from ToolCall.id, enabling matching response with"
+            " ToolRequestMessage."
+        )
+    )
+
+    @classmethod
+    def from_call(cls, call: ToolCall, content: str) -> Self:
+        return cls(content=content, name=call.function.name, tool_call_id=call.id)
+
+    @classmethod
+    def from_request(
+        cls, request: ToolRequestMessage, contents: Iterable[str]
+    ) -> list[Self]:
+        return list(
+            starmap(cls.from_call, zip(request.tool_calls, contents, strict=True))
+        )
+
+    def __str__(self) -> str:
+        return (
+            f"Tool response message {self.content!r} for tool call ID"
+            f" {self.tool_call_id} of tool {self.name!r}"
+        )
+
+
 def join(
     msgs: Iterable[Message], delimiter: str = "\n", include_roles: bool = True
 ) -> str:
     return delimiter.join(
         f"{f'{m.role}: ' if include_roles else ''}{m.content or ''}" for m in msgs
     )
-
-
-class MalformedMessageError(ValueError):
-    """Error to throw if some aspect of a Message variant is malformed."""
-
-    @classmethod
-    def common_retryable_errors_log_filter(cls, record: LogRecord) -> bool:
-        """
-        Filter out common parsing failures not worth looking into from logs.
-
-        Returns:
-            False if the LogRecord should be filtered out, otherwise True to keep it.
-        """
-        # NOTE: match both this Exception type's name and its content, to be robust
-        return not all(x in record.msg for x in (cls.__name__, EMPTY_CONTENT_BASE_MSG))
 
 
 class EnvStateMessage(Message):
