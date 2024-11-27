@@ -1,4 +1,3 @@
----
 default_language_version:
   python: python3
 repos:
@@ -24,7 +23,7 @@ repos:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.3.3
+    rev: v3.4.0
     hooks:
       - id: prettier
   - repo: https://github.com/psf/black-pre-commit-mirror
@@ -41,6 +40,10 @@ repos:
       - id: codespell
         additional_dependencies: [".[toml]"]
         exclude_types: [jupyter]
+        exclude: |
+          (?x)^(
+            tests/cassettes.*
+          )$
   - repo: https://github.com/pappasam/toml-sort
     rev: v0.24.2
     hooks:
@@ -50,12 +53,10 @@ repos:
     hooks:
       - id: nb-clean
         args: [--preserve-cell-outputs, --remove-empty-cells]
-  - repo: https://github.com/abravalheri/validate-pyproject
-    rev: v0.23
+  - repo: https://github.com/henryiii/validate-pyproject-schema-store
+    rev: 2024.11.25
     hooks:
       - id: validate-pyproject
-        additional_dependencies:
-          - "validate-pyproject-schema-store[all]>=2024.06.24" # For Ruff renaming RUF025 to C420
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.4.30
     hooks:
@@ -74,8 +75,7 @@ repos:
           - PyMuPDF>=1.24.12
           - anyio
           - coredis
-          - fhaviary[llm]>=0.10.0 # Match pyproject.toml
-          - ldp>=0.12 # Match pyproject.toml
+          - fhaviary[llm]>=0.8.2 # Match pyproject.toml
           - html2text
           - litellm>=1.44 # Match pyproject.toml
           - httpx
@@ -83,7 +83,7 @@ repos:
           - pybtex
           - numpy
           - pandas-stubs
-          - pydantic~=2.0 # Match pyproject.toml
+          - pydantic~=2.0,>=2.10.1,<2.10.2 # Match pyproject.toml
           - pydantic-settings
           - rich
           - tantivy
