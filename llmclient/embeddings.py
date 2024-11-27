@@ -16,11 +16,7 @@ from pydantic import (
 
 from llmclient.constants import CHARACTERS_PER_TOKEN_ASSUMPTION, MODEL_COST_MAP
 from llmclient.rate_limiter import GLOBAL_LIMITER
-
-
-def get_litellm_retrying_config(timeout: float = 60.0) -> dict[str, Any]:
-    """Get retrying configuration for litellm.acompletion and litellm.aembedding."""
-    return {"num_retries": 3, "timeout": timeout}
+from llmclient.utils import get_litellm_retrying_config
 
 
 class EmbeddingModes(StrEnum):
