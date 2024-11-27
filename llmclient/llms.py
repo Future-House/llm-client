@@ -13,6 +13,7 @@ from collections.abc import (
 )
 from inspect import isasyncgenfunction, signature
 from typing import (
+    TYPE_CHECKING,
     Any,
     ClassVar,
     Self,
@@ -53,6 +54,14 @@ if not IS_PYTHON_BELOW_312:
         list[litellm.DeploymentTypedDict],
         config=ConfigDict(arbitrary_types_allowed=True),
     )
+
+
+def get_tool_classes():
+    from aviary.core import Tool, ToolsAdapter, ToolSelector  # noqa: F401
+
+
+if TYPE_CHECKING:
+    get_tool_classes()
 
 
 def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
@@ -581,10 +590,10 @@ class LiteLLMModel(LLMModel):
         tool_selector = ToolSelector(
             model_name=self.name, acompletion=self.router.acompletion
         )
-        return await tool_selector(*selection_args, **selection_kwargs) # type: ignore[return-value]
-        #TODO : Fix the return type of the function
-        #TODO : It currently returns aviary.tools.base.ToolRequestMessage
-        #TODO : It should return llmclient.messages.ToolRequestMessage once aviary is updated
+        return await tool_selector(*selection_args, **selection_kwargs)  # type: ignore[return-value]
+        # TODO : Fix the return type of the function
+        # TODO : It currently returns aviary.tools.base.ToolRequestMessage
+        # TODO : It should return llmclient.messages.ToolRequestMessage once aviary is updated
 
 
 class MultipleCompletionLLMModel(BaseModel):
