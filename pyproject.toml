@@ -389,7 +389,7 @@ ignore = [
     "S311",  # Ok to use python random
     "SLF001",  # Overly pedantic
     "T201",  # Overly pedantic
-    "TC001",  # TC001, TC002, TC003: don't care to enforce type checking blocks
+    "TC001",  # TCH001, TCH002, TCH003: don't care to enforce type checking blocks
     "TC002",
     "TC003",
     "TD002",  # Don't care for TODO author
