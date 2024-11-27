@@ -12,6 +12,11 @@ import numpy as np
 import pymupdf
 
 
+def get_litellm_retrying_config(timeout: float = 60.0) -> dict[str, Any]:
+    """Get retrying configuration for litellm.acompletion and litellm.aembedding."""
+    return {"num_retries": 3, "timeout": timeout}
+
+
 def encode_image_to_base64(img: "np.ndarray") -> str:
     """Encode an image to a base64 string, to be included as an image_url in a Message."""
     try:

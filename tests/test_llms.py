@@ -1,19 +1,23 @@
 import pathlib
 import pickle
-from typing import Any
-from unittest.mock import patch
+from enum import StrEnum
+from typing import Any, ClassVar
+from unittest.mock import Mock, patch
 
 import litellm
+import numpy as np
 import pytest
+from aviary.core import Message, Tool, ToolRequestMessage
+from pydantic import BaseModel
 
-from llmclient.embeddings import (
-    HybridEmbeddingModel,
-    LiteLLMEmbeddingModel,
-    SentenceTransformerEmbeddingModel,
-    SparseEmbeddingModel,
-    embedding_model_factory,
+from llmclient.exceptions import JSONSchemaValidationError
+from llmclient.llms import (
+    Chunk,
+    LiteLLMModel,
+    MultipleCompletionLLMModel,
+    validate_json_completion,
 )
-from llmclient.llms import Chunk, LiteLLMModel
+from llmclient.types import LLMResult
 from tests.conftest import VCR_DEFAULT_MATCH_ON
 
 
@@ -158,104 +162,182 @@ class TestLiteLLMModel:
         assert llm.router.deployment_names == rehydrated_llm.router.deployment_names
 
 
-@pytest.mark.asyncio
-async def test_embedding_model_factory_sentence_transformer() -> None:
-    """Test that the factory creates a SentenceTransformerEmbeddingModel when given an 'st-' prefix."""
-    embedding = "st-multi-qa-MiniLM-L6-cos-v1"
-    model = embedding_model_factory(embedding)
-    assert isinstance(
-        model, SentenceTransformerEmbeddingModel
-    ), "Factory did not create SentenceTransformerEmbeddingModel"
-    assert model.name == "multi-qa-MiniLM-L6-cos-v1", "Incorrect model name assigned"
+class CILLMModelNames(StrEnum):
+    """Models to use for generic CI testing."""
 
-    # Test embedding functionality
-    texts = ["Hello world", "Test sentence"]
-    embeddings = await model.embed_documents(texts)
-    assert len(embeddings) == 2, "Incorrect number of embeddings returned"
-    assert all(
-        isinstance(embed, list) for embed in embeddings
-    ), "Embeddings are not in list format"
-    assert all(len(embed) > 0 for embed in embeddings), "Embeddings should not be empty"
+    ANTHROPIC = "claude-3-haiku-20240307"  # Cheap and not Anthropic's cutting edge
+    OPENAI = "gpt-4o-mini-2024-07-18"  # Cheap and not OpenAI's cutting edge
 
 
-@pytest.mark.asyncio
-async def test_embedding_model_factory_hybrid_with_sentence_transformer() -> None:
-    """Test that the factory creates a HybridEmbeddingModel containing a SentenceTransformerEmbeddingModel."""
-    embedding = "hybrid-st-multi-qa-MiniLM-L6-cos-v1"
-    model = embedding_model_factory(embedding)
-    assert isinstance(
-        model, HybridEmbeddingModel
-    ), "Factory did not create HybridEmbeddingModel"
-    assert len(model.models) == 2, "Hybrid model should contain two component models"
-    assert isinstance(
-        model.models[0], SentenceTransformerEmbeddingModel
-    ), "First component should be SentenceTransformerEmbeddingModel"
-    assert isinstance(
-        model.models[1], SparseEmbeddingModel
-    ), "Second component should be SparseEmbeddingModel"
+class DummyOutputSchema(BaseModel):
+    name: str
+    age: int
 
-    # Test embedding functionality
-    texts = ["Hello world", "Test sentence"]
-    embeddings = await model.embed_documents(texts)
-    assert len(embeddings) == 2, "Incorrect number of embeddings returned"
-    expected_length = len((await model.models[0].embed_documents(texts))[0]) + len(
-        (await model.models[1].embed_documents(texts))[0]
+
+class TestMultipleCompletionLLMModel:
+    NUM_COMPLETIONS: ClassVar[int] = 2
+    DEFAULT_CONFIG: ClassVar[dict] = {"n": NUM_COMPLETIONS}
+    MODEL_CLS: ClassVar[type[MultipleCompletionLLMModel]] = MultipleCompletionLLMModel
+
+    async def call_model(
+        self, model: MultipleCompletionLLMModel, *args, **kwargs
+    ) -> list[LLMResult]:
+        return await model.call(*args, **kwargs)
+
+    @pytest.mark.parametrize(
+        "model_name", ["gpt-3.5-turbo", CILLMModelNames.ANTHROPIC.value]
     )
-    assert all(
-        len(embed) == expected_length for embed in embeddings
-    ), "Embeddings do not match expected combined length"
+    @pytest.mark.asyncio
+    async def test_achat(self, model_name: str) -> None:
+        model = MultipleCompletionLLMModel(name=model_name)
+        response = await model.achat(
+            messages=[
+                Message(content="What are three things I should do today?"),
+            ]
+        )
+
+        assert len(response.choices) == 1
+
+        # Check we can iterate through the response
+        async for chunk in await model.achat_iter(
+            messages=[
+                Message(content="What are three things I should do today?"),
+            ]
+        ):
+            assert len(chunk.choices) == 1
+
+    @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
+    @pytest.mark.parametrize("model_name", ["gpt-3.5-turbo"])
+    @pytest.mark.asyncio
+    async def test_model(self, model_name: str) -> None:
+        # Make model_name an arg so that TestLLMModel can parametrize it
+        # only testing OpenAI, as other APIs don't support n>1
+        model = self.MODEL_CLS(name=model_name, config=self.DEFAULT_CONFIG)
+        messages = [
+            Message(role="system", content="Respond with single words."),
+            Message(content="Hello, how are you?"),
+        ]
+        results = await self.call_model(model, messages)
+        assert len(results) == self.NUM_COMPLETIONS
+
+        for result in results:
+            assert result.prompt_count > 0
+            assert result.completion_count > 0
+            assert result.cost > 0
+            assert result.logprob is None or result.logprob <= 0
+
+    @pytest.mark.parametrize(
+        "model_name", [CILLMModelNames.ANTHROPIC.value, "gpt-3.5-turbo"]
+    )
+    @pytest.mark.asyncio
+    async def test_streaming(self, model_name: str) -> None:
+        model = self.MODEL_CLS(name=model_name, config=self.DEFAULT_CONFIG)
+        messages = [
+            Message(role="system", content="Respond with single words."),
+            Message(content="Hello, how are you?"),
+        ]
+
+        def callback(_) -> None:
+            return
+
+        with pytest.raises(
+            NotImplementedError,
+            match="Multiple completions with callbacks is not supported",
+        ):
+            await self.call_model(model, messages, [callback])
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_parameterizing_tool_from_arg_union(self) -> None:
+        def play(move: int | None) -> None:
+            """Play one turn by choosing a move.
+
+            Args:
+                move: Choose an integer to lose, choose None to win.
+            """
+
+        results = await self.call_model(
+            self.MODEL_CLS(name="gpt-3.5-turbo", config=self.DEFAULT_CONFIG),
+            messages=[Message(content="Please win.")],
+            tools=[Tool.from_function(play)],
+        )
+        assert len(results) == self.NUM_COMPLETIONS
+        for result in results:
+            assert result.messages
+            assert len(result.messages) == 1
+            assert isinstance(result.messages[0], ToolRequestMessage)
+            assert result.messages[0].tool_calls
+            assert result.messages[0].tool_calls[0].function.arguments["move"] is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.vcr
+    async def test_output_schema(self) -> None:
+        model = self.MODEL_CLS(name="gpt-3.5-turbo", config=self.DEFAULT_CONFIG)
+        messages = [
+            Message(
+                content=(
+                    "My name is Claude and I am 1 year old. What is my name and age?"
+                )
+            ),
+        ]
+        results = await self.call_model(model, messages, output_type=DummyOutputSchema)
+        assert len(results) == self.NUM_COMPLETIONS
+        for result in results:
+            assert result.messages
+            assert len(result.messages) == 1
+            assert result.messages[0].content
+            DummyOutputSchema.model_validate_json(result.messages[0].content)
+
+    @pytest.mark.parametrize("model_name", [CILLMModelNames.OPENAI.value])
+    @pytest.mark.asyncio
+    @pytest.mark.vcr
+    async def test_text_image_message(self, model_name: str) -> None:
+        model = self.MODEL_CLS(name=model_name, config=self.DEFAULT_CONFIG)
+
+        # An RGB image of a red square
+        image = np.zeros((32, 32, 3), dtype=np.uint8)
+        image[:] = [255, 0, 0]  # (255 red, 0 green, 0 blue) is maximum red in RGB
+
+        results = await self.call_model(
+            model,
+            messages=[
+                Message.create_message(
+                    text="What color is this square? Respond only with the color name.",
+                    image=image,
+                )
+            ],
+        )
+        assert len(results) == self.NUM_COMPLETIONS
+        for result in results:
+            assert (
+                result.messages is not None
+            ), "Expected messages in result, but got None"
+            assert (
+                result.messages[-1].content is not None
+            ), "Expected content in message, but got None"
+            assert "red" in result.messages[-1].content.lower()
 
 
-@pytest.mark.asyncio
-async def test_embedding_model_factory_invalid_st_prefix() -> None:
-    """Test that the factory raises a ValueError when 'st-' prefix is provided without a model name."""
-    embedding = "st-"
-    with pytest.raises(
-        ValueError,
-        match="SentenceTransformer model name must be specified after 'st-'.",
-    ):
-        embedding_model_factory(embedding)
+def test_json_schema_validation() -> None:
+    # Invalid JSON
+    mock_completion1 = Mock()
+    mock_completion1.choices = [Mock()]
+    mock_completion1.choices[0].message.content = "not a json"
+    # Invalid schema
+    mock_completion2 = Mock()
+    mock_completion2.choices = [Mock()]
+    mock_completion2.choices[0].message.content = '{"name": "John", "age": "nan"}'
+    # Valid schema
+    mock_completion3 = Mock()
+    mock_completion3.choices = [Mock()]
+    mock_completion3.choices[0].message.content = '{"name": "John", "age": 30}'
 
+    class DummyModel(BaseModel):
+        name: str
+        age: int
 
-@pytest.mark.asyncio
-async def test_embedding_model_factory_unknown_prefix() -> None:
-    """Test that the factory defaults to LiteLLMEmbeddingModel when an unknown prefix is provided."""
-    embedding = "unknown-prefix-model"
-    model = embedding_model_factory(embedding)
-    assert isinstance(
-        model, LiteLLMEmbeddingModel
-    ), "Factory did not default to LiteLLMEmbeddingModel for unknown prefix"
-    assert model.name == "unknown-prefix-model", "Incorrect model name assigned"
-
-
-@pytest.mark.asyncio
-async def test_embedding_model_factory_sparse() -> None:
-    """Test that the factory creates a SparseEmbeddingModel when 'sparse' is provided."""
-    embedding = "sparse"
-    model = embedding_model_factory(embedding)
-    assert isinstance(
-        model, SparseEmbeddingModel
-    ), "Factory did not create SparseEmbeddingModel"
-    assert model.name == "sparse", "Incorrect model name assigned"
-
-
-@pytest.mark.asyncio
-async def test_embedding_model_factory_litellm() -> None:
-    """Test that the factory creates a LiteLLMEmbeddingModel when 'litellm-' prefix is provided."""
-    embedding = "litellm-text-embedding-3-small"
-    model = embedding_model_factory(embedding)
-    assert isinstance(
-        model, LiteLLMEmbeddingModel
-    ), "Factory did not create LiteLLMEmbeddingModel"
-    assert model.name == "text-embedding-3-small", "Incorrect model name assigned"
-
-
-@pytest.mark.asyncio
-async def test_embedding_model_factory_default() -> None:
-    """Test that the factory defaults to LiteLLMEmbeddingModel when no known prefix is provided."""
-    embedding = "default-model"
-    model = embedding_model_factory(embedding)
-    assert isinstance(
-        model, LiteLLMEmbeddingModel
-    ), "Factory did not default to LiteLLMEmbeddingModel"
-    assert model.name == "default-model", "Incorrect model name assigned"
+    with pytest.raises(JSONSchemaValidationError):
+        validate_json_completion(mock_completion1, DummyModel)
+    with pytest.raises(JSONSchemaValidationError):
+        validate_json_completion(mock_completion2, DummyModel)
+    validate_json_completion(mock_completion3, DummyModel)

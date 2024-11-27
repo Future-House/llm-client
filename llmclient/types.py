@@ -5,6 +5,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 import litellm
+from aviary.core import Message
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -62,16 +63,19 @@ class LLMResult(BaseModel):
 
     id: UUID = Field(default_factory=uuid4)
     session_id: UUID | None = Field(
-        default_factory=cvar_session_id.get,
+        default_factory=cvar_session_id.get,  # type: ignore[arg-type]
         description="A persistent ID to associate a group of LLMResults",
         alias="answer_id",
     )
     name: str | None = None
-    prompt: str | list[dict] | None = Field(
+    prompt: str | list[dict] | Message | list[Message] | None = Field(
         default=None,
         description="Optional prompt (str) or list of serialized prompts (list[dict]).",
     )
     text: str = ""
+    messages: list[Message] | None = Field(
+        default=None, description="Messages received from the LLM."
+    )
     prompt_count: int = 0
     completion_count: int = 0
     model: str
@@ -81,6 +85,9 @@ class LLMResult(BaseModel):
     )
     seconds_to_last_token: float = Field(
         default=0.0, description="Delta time (sec) to last response token's arrival."
+    )
+    logprob: float | None = Field(
+        default=None, description="Sum of logprobs in the completion."
     )
 
     def __str__(self) -> str:
@@ -98,3 +105,13 @@ class LLMResult(BaseModel):
             except KeyError:
                 logger.warning(f"Could not find cost for model {self.model}.")
         return 0.0
+
+    # These two methods were implemented in ldp, but not in pqa. Check if they're necessary
+    # @property
+    # def provider(self) -> str:
+    #     """Get the model provider's name (e.g. "openai", "mistral")."""
+    #     return litellm.get_llm_provider(self.model)[1]
+
+    # def get_supported_openai_params(self) -> list[str] | None:
+    #     """Get the supported OpenAI parameters for the model."""
+    #     return litellm.get_supported_openai_params(self.model)

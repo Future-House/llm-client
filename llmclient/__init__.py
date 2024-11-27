@@ -1,7 +1,33 @@
-from llmclient.llms import LLMModel
-from llmclient.types import LLMResult
+from llmclient.embeddings import (
+    EmbeddingModel,
+    HybridEmbeddingModel,
+    LiteLLMEmbeddingModel,
+    SentenceTransformerEmbeddingModel,
+    SparseEmbeddingModel,
+    embedding_model_factory,
+)
+from llmclient.llms import LiteLLMModel, LLMModel, MultipleCompletionLLMModel
+from llmclient.types import (
+    Chunk,
+    Embeddable,
+    LLMResult,
+)
+from llmclient.version import __version__
 
 __all__ = [
+    "Chunk",
+    "Embeddable",
+    "EmbeddingModel",
+    "HybridEmbeddingModel",
     "LLMModel",
     "LLMResult",
+    "LLMResult",
+    "LiteLLMEmbeddingModel",
+    "LiteLLMModel",
+    "MultipleCompletionLLMModel",
+    "SentenceTransformerEmbeddingModel",
+    "SparseEmbeddingModel",
+    "embedding_model_factory",
+    "embedding_model_factory",
+    "__version__",
 ]
