@@ -1,7 +1,10 @@
-import pytest
 import json
+
 import numpy as np
+import pytest
+
 from llmclient.messages import Message
+
 
 class TestMessage:
     def test_roles(self) -> None:

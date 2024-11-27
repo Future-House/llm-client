@@ -10,6 +10,7 @@ from llmclient.utils import encode_image_to_base64
 
 if TYPE_CHECKING:
     from logging import LogRecord
+
     import numpy as np
 
 
