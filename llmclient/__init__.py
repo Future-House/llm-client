@@ -27,7 +27,7 @@ __all__ = [
     "MultipleCompletionLLMModel",
     "SentenceTransformerEmbeddingModel",
     "SparseEmbeddingModel",
-    "embedding_model_factory",
-    "embedding_model_factory",
     "__version__",
+    "embedding_model_factory",
+    "embedding_model_factory",
 ]
