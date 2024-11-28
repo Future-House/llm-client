@@ -5,11 +5,13 @@ from collections.abc import Iterable
 from itertools import starmap
 from typing import ClassVar, Literal, Self, TypeVar
 
+import aviary.core as fhaviary
 import numpy as np
-from aviary.core import ToolCall
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from llmclient.utils import encode_image_to_base64
+
+ToolCall = fhaviary.ToolCall
 
 T = TypeVar("T", bound="Message")
 

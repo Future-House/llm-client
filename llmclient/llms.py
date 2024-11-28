@@ -21,6 +21,7 @@ from typing import (
 )
 
 import litellm
+from aviary.core import Tool, ToolsAdapter, ToolSelector
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -48,9 +49,6 @@ if not IS_PYTHON_BELOW_312:
         list[litellm.DeploymentTypedDict],
         config=ConfigDict(arbitrary_types_allowed=True),
     )
-
-
-from aviary.core import Tool, ToolsAdapter, ToolSelector
 
 
 def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
