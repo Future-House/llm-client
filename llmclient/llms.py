@@ -13,7 +13,6 @@ from collections.abc import (
 )
 from inspect import isasyncgenfunction, signature
 from typing import (
-    TYPE_CHECKING,
     Any,
     ClassVar,
     Self,
@@ -51,12 +50,7 @@ if not IS_PYTHON_BELOW_312:
     )
 
 
-def get_tool_classes():
-    from aviary.core import Tool, ToolsAdapter, ToolSelector  # noqa: F401
-
-
-if TYPE_CHECKING:
-    get_tool_classes()
+from aviary.core import Tool, ToolsAdapter, ToolSelector
 
 
 def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
