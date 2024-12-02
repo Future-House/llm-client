@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 from abc import ABC, abstractmethod
 from enum import StrEnum
@@ -8,11 +6,7 @@ from typing import Any
 import litellm
 import numpy as np
 import tiktoken
-from pydantic import (
-    BaseModel,
-    Field,
-    field_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from llmclient.constants import CHARACTERS_PER_TOKEN_ASSUMPTION, MODEL_COST_MAP
 from llmclient.rate_limiter import GLOBAL_LIMITER
@@ -20,12 +14,15 @@ from llmclient.utils import get_litellm_retrying_config
 
 
 class EmbeddingModes(StrEnum):
+    """Enum representing the different modes of an embedding model."""
+
     DOCUMENT = "document"
     QUERY = "query"
 
 
 class EmbeddingModel(ABC, BaseModel):
     name: str
+    ndim: int | None = None
     config: dict[str, Any] = Field(
         default_factory=dict,
         description=(
@@ -33,6 +30,27 @@ class EmbeddingModel(ABC, BaseModel):
             " string for parsing"
         ),
     )
+
+    def set_mode(self, mode: EmbeddingModes) -> None:
+        """Several embedding models have a 'mode' or prompt which affects output."""
+
+    @abstractmethod
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        pass
+
+    async def embed_document(self, text: str) -> list[float]:
+        return (await self.embed_documents([text]))[0]
+
+    @staticmethod
+    def from_name(embedding: str, **kwargs) -> "EmbeddingModel":
+        if embedding.startswith("hybrid"):
+            dense_model = LiteLLMEmbeddingModel(name="-".join(embedding.split("-")[1:]))
+            return HybridEmbeddingModel(
+                name=embedding, models=[dense_model, SparseEmbeddingModel(**kwargs)]
+            )
+        if embedding == "sparse":
+            return SparseEmbeddingModel(**kwargs)
+        return LiteLLMEmbeddingModel(name=embedding, **kwargs)
 
     async def check_rate_limit(self, token_count: float, **kwargs) -> None:
         if "rate_limit" in self.config:
@@ -43,17 +61,22 @@ class EmbeddingModel(ABC, BaseModel):
                 **kwargs,
             )
 
-    def set_mode(self, mode: EmbeddingModes) -> None:
-        """Several embedding models have a 'mode' or prompt which affects output."""
-
-    @abstractmethod
-    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        pass
-
 
 class LiteLLMEmbeddingModel(EmbeddingModel):
-
     name: str = Field(default="text-embedding-3-small")
+    ndim: int | None = Field(
+        default=None,
+        description=(
+            "The length an embedding will have. If left unspecified, we attempt to"
+            " infer an un-truncated length via LiteLLM's internal model map. If this"
+            " inference fails, the embedding will be un-truncated."
+        ),
+    )
+    batch_size: int = 16
+    embed_kwargs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra kwargs to pass to litellm.aembedding.",
+    )
     config: dict[str, Any] = Field(
         default_factory=dict,  # See below field_validator for injection of kwargs
         description=(
@@ -63,6 +86,24 @@ class LiteLLMEmbeddingModel(EmbeddingModel):
             " Router is not used here."
         ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def infer_dimensions(cls, data: dict[str, Any]) -> dict[str, Any]:
+        if data.get("ndim") is not None:
+            return data
+        # Let's infer the dimensions
+        config: dict[str, dict[str, Any]] = litellm.get_model_cost_map(
+            url="https://raw.githubusercontent.com/BerriAI/litellm/main/litellm/model_prices_and_context_window_backup.json"
+        )
+        output_vector_size: int | None = config.get(
+            data.get("name", ""), {}
+        ).get(  # noqa: FURB184
+            "output_vector_size"
+        )
+        if output_vector_size:
+            data["ndim"] = output_vector_size
+        return data
 
     @field_validator("config", mode="before")
     @classmethod
@@ -107,8 +148,9 @@ class LiteLLMEmbeddingModel(EmbeddingModel):
             )
 
             response = await litellm.aembedding(
-                self.name,
+                model=self.name,
                 input=texts[i : i + batch_size],
+                dimensions=self.ndim,
                 **self.config.get("kwargs", {}),
             )
             embeddings.extend([e["embedding"] for e in response.data])
@@ -119,16 +161,24 @@ class LiteLLMEmbeddingModel(EmbeddingModel):
 class SparseEmbeddingModel(EmbeddingModel):
     """This is a very simple keyword search model - probably best to be mixed with others."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     name: str = "sparse"
     ndim: int = 256
-    enc: Any = Field(default_factory=lambda: tiktoken.get_encoding("cl100k_base"))
+    enc: tiktoken.Encoding = Field(
+        default_factory=lambda: tiktoken.get_encoding("cl100k_base")
+    )
 
-    async def embed_documents(self, texts) -> list[list[float]]:
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         enc_batch = self.enc.encode_ordinary_batch(texts)
         # now get frequency of each token rel to length
         return [
-            np.bincount([xi % self.ndim for xi in x], minlength=self.ndim).astype(float)  # type: ignore[misc]
-            / len(x)
+            (
+                np.bincount([xi % self.ndim for xi in x], minlength=self.ndim).astype(
+                    float
+                )
+                / len(x)
+            ).tolist()
             for x in enc_batch
         ]
 
@@ -137,11 +187,21 @@ class HybridEmbeddingModel(EmbeddingModel):
     name: str = "hybrid-embed"
     models: list[EmbeddingModel]
 
-    async def embed_documents(self, texts):
+    @model_validator(mode="before")
+    @classmethod
+    def infer_dimensions(cls, data: dict[str, Any]) -> dict[str, Any]:
+        if data.get("ndim") is not None:
+            raise ValueError(f"Don't specify dimensions to {cls.__name__}.")
+        if not data.get("models") or any(m.ndim is None for m in data["models"]):
+            return data
+        data["ndim"] = sum(m.ndim for m in data["models"])
+        return data
+
+    async def embed_documents(self, texts) -> list[list[float]]:
         all_embeds = await asyncio.gather(
             *[m.embed_documents(texts) for m in self.models]
         )
-        return np.concatenate(all_embeds, axis=1)
+        return np.concatenate(all_embeds, axis=1).tolist()
 
     def set_mode(self, mode: EmbeddingModes) -> None:
         # Set mode for all component models
