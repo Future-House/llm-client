@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import litellm
 import numpy as np
 import pytest
-from aviary.core import Tool
+from aviary.core import Tool, ToolRequestMessage
 from pydantic import BaseModel
 
 from llmclient.exceptions import JSONSchemaValidationError
@@ -17,7 +17,7 @@ from llmclient.llms import (
     MultipleCompletionLLMModel,
     validate_json_completion,
 )
-from llmclient.messages import Message, ToolRequestMessage
+from llmclient.messages import Message
 from llmclient.types import LLMResult
 from tests.conftest import VCR_DEFAULT_MATCH_ON
 

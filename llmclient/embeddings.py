@@ -197,7 +197,7 @@ class HybridEmbeddingModel(EmbeddingModel):
         data["ndim"] = sum(m.ndim for m in data["models"])
         return data
 
-    async def embed_documents(self, texts) -> list[list[float]]:
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         all_embeds = await asyncio.gather(
             *[m.embed_documents(texts) for m in self.models]
         )

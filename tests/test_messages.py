@@ -5,13 +5,11 @@ import pytest
 from aviary.core import (
     ToolCall,
     ToolCallFunction,
-)
-
-from llmclient.messages import (
-    Message,
     ToolRequestMessage,
     ToolResponseMessage,
 )
+
+from llmclient.messages import Message
 
 
 class TestMessage:

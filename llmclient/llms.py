@@ -21,7 +21,7 @@ from typing import (
 )
 
 import litellm
-from aviary.core import Tool, ToolsAdapter, ToolSelector
+from aviary.tools import Tool, ToolRequestMessage, ToolsAdapter, ToolSelector
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -38,7 +38,7 @@ from llmclient.constants import (
     IS_PYTHON_BELOW_312,
 )
 from llmclient.exceptions import JSONSchemaValidationError
-from llmclient.messages import Message, ToolRequestMessage
+from llmclient.messages import Message
 from llmclient.prompts import default_system_prompt
 from llmclient.rate_limiter import GLOBAL_LIMITER
 from llmclient.types import Chunk, LLMResult
@@ -151,13 +151,11 @@ class LLMModel(ABC, BaseModel):
         if False:  # type: ignore[unreachable]  # pylint: disable=using-constant-test
             yield  # Trick mypy: https://github.com/python/mypy/issues/5070#issuecomment-1050834495
 
-    async def achat(self, messages: Iterable[dict[str, str]]) -> Chunk:
+    async def achat(self, messages: list[Message]) -> Chunk:
         """Return the completion as string and the number of tokens in the prompt and completion."""
         raise NotImplementedError
 
-    async def achat_iter(
-        self, messages: Iterable[dict[str, str]]
-    ) -> AsyncIterable[Chunk]:
+    async def achat_iter(self, messages: list[Message]) -> AsyncIterable[Chunk]:
         """Return an async generator that yields chunks of the completion.
 
         Only the last tuple will be non-zero.
@@ -212,7 +210,7 @@ class LLMModel(ABC, BaseModel):
         """
         human_message_prompt = {"role": "user", "content": prompt}
         messages = [
-            {"role": m["role"], "content": m["content"].format(**data)}
+            Message(role=m["role"], content=m["content"].format(**data))
             for m in (
                 [{"role": "system", "content": system_prompt}, human_message_prompt]
                 if system_prompt
@@ -224,8 +222,12 @@ class LLMModel(ABC, BaseModel):
             name=name,
             prompt=messages,
             prompt_count=(
-                sum(self.count_tokens(m["content"]) for m in messages)
-                + sum(self.count_tokens(m["role"]) for m in messages)
+                sum(
+                    self.count_tokens(m.content)
+                    for m in messages
+                    if m.content is not None
+                )
+                + sum(self.count_tokens(m.role) for m in messages)
             ),
         )
 
@@ -526,9 +528,7 @@ class LiteLLMModel(LLMModel):
             )
 
     @rate_limited
-    async def achat(  # type: ignore[override]
-        self, messages: Iterable[dict[str, str]]
-    ) -> Chunk:
+    async def achat(self, messages: Iterable[dict]) -> Chunk:  # type: ignore[override]
         response = await self.router.acompletion(self.name, list(messages))
         return Chunk(
             text=cast(litellm.Choices, response.choices[0]).message.content,
@@ -538,7 +538,7 @@ class LiteLLMModel(LLMModel):
 
     @rate_limited
     async def achat_iter(  # type: ignore[override]
-        self, messages: Iterable[dict[str, str]]
+        self, messages: Iterable[dict]
     ) -> AsyncIterable[Chunk]:
         completion = await self.router.acompletion(
             self.name,
@@ -577,10 +577,7 @@ class LiteLLMModel(LLMModel):
         tool_selector = ToolSelector(
             model_name=self.name, acompletion=self.router.acompletion
         )
-        return await tool_selector(*selection_args, **selection_kwargs)  # type: ignore[return-value]
-        # TODO : Fix the return type of the function
-        # TODO : It currently returns aviary.tools.base.ToolRequestMessage
-        # TODO : It should return llmclient.messages.ToolRequestMessage once aviary is updated
+        return await tool_selector(*selection_args, **selection_kwargs)
 
 
 class MultipleCompletionLLMModel(BaseModel):
@@ -698,7 +695,7 @@ class MultipleCompletionLLMModel(BaseModel):
         prompt = [
             (
                 m
-                if not isinstance(m, ToolRequestMessage) or m.tool_calls
+                if not isinstance(m, ToolRequestMessage) or m.tool_calls  # type: ignore[unreachable]
                 # OpenAI doesn't allow for empty tool_calls lists, so downcast empty
                 # ToolRequestMessage to Message here
                 else Message(role=m.role, content=m.content)

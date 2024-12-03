@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
-from typing import ClassVar, Self, TypeVar
+from typing import ClassVar, TypeVar
 
 import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -78,7 +78,7 @@ class Message(BaseModel):
 
     def __str__(self) -> str:
         return self.content or ""
-
+    
     def model_dump(self, *args, **kwargs) -> dict:
         dump = super().model_dump(*args, **kwargs)
         if self.content_is_json_str:
@@ -117,11 +117,11 @@ class Message(BaseModel):
 
     @classmethod
     def create_message(
-        cls,
+        cls: type[T],
         role: str = DEFAULT_ROLE,
         text: str | None = None,
         image: np.ndarray | None = None,
-    ) -> Self:
+    ) -> T:
         # Assume no image, and update to image if present
         content: str | list[dict] | None = text
         if image is not None:
