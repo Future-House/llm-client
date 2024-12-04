@@ -19,7 +19,6 @@ from typing import (
     Self,
     TypeVar,
     cast,
-    overload,
 )
 
 import litellm
@@ -532,8 +531,11 @@ class LiteLLMModel(LLMModel):
             )
 
     @rate_limited
-    async def achat(self, messages: Iterable[dict]) -> Chunk:  # type: ignore[override]
-        response = await self.router.acompletion(self.name, list(messages))
+    async def achat(self, messages: list[Message]) -> Chunk:  # type: ignore[override]
+        prompts = [
+            {"role": m.role, "content": m.content} for m in messages if m.content
+        ]
+        response = await self.router.acompletion(self.name, prompts)
         return Chunk(
             text=cast(litellm.Choices, response.choices[0]).message.content,
             prompt_tokens=response.usage.prompt_tokens,  # type: ignore[attr-defined]
@@ -542,11 +544,14 @@ class LiteLLMModel(LLMModel):
 
     @rate_limited
     async def achat_iter(  # type: ignore[override]
-        self, messages: Iterable[dict]
+        self, messages: list[Message]
     ) -> AsyncIterable[Chunk]:
+        prompts = [
+            {"role": m.role, "content": m.content} for m in messages if m.content
+        ]
         completion = await self.router.acompletion(
             self.name,
-            list(messages),
+            prompts,
             stream=True,
             stream_options={"include_usage": True},
         )

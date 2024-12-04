@@ -182,7 +182,7 @@ class TestMultipleCompletionLLMModel:
 
     async def call_model(
         self, model: MultipleCompletionLLMModel, *args, **kwargs
-    ) -> list[LLMResult] | LLMResult:
+    ) -> list[LLMResult]:
         return await model.call(*args, **kwargs)
 
     @pytest.mark.parametrize(

@@ -96,11 +96,9 @@ class LiteLLMEmbeddingModel(EmbeddingModel):
         config: dict[str, dict[str, Any]] = litellm.get_model_cost_map(
             url="https://raw.githubusercontent.com/BerriAI/litellm/main/litellm/model_prices_and_context_window_backup.json"
         )
-        output_vector_size: int | None = config.get(
+        output_vector_size: int | None = config.get(  # noqa: FURB184
             data.get("name", ""), {}
-        ).get(  # noqa: FURB184
-            "output_vector_size"
-        )
+        ).get("output_vector_size")
         if output_vector_size:
             data["ndim"] = output_vector_size
         return data
