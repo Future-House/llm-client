@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import functools
 import json
+import logging
 from abc import ABC
 from collections.abc import (
     AsyncGenerator,
@@ -18,6 +19,7 @@ from typing import (
     Self,
     TypeVar,
     cast,
+    overload,
 )
 
 import litellm
@@ -43,6 +45,8 @@ from llmclient.prompts import default_system_prompt
 from llmclient.rate_limiter import GLOBAL_LIMITER
 from llmclient.types import Chunk, LLMResult
 from llmclient.utils import get_litellm_retrying_config, is_coroutine_callable
+
+logger = logging.getLogger(__name__)
 
 if not IS_PYTHON_BELOW_312:
     _DeploymentTypedDictValidator = TypeAdapter(
@@ -589,10 +593,16 @@ class MultipleCompletionLLMModel(BaseModel):
     # if fine-tuned, this should still refer to the base model
     name: str = "unknown"
     config: dict = Field(
-        default={
-            "model": "gpt-3.5-turbo",  # Default model should have cheap input/output for testing
+        default_factory=lambda: {
+            "model": "gpt-4o-mini",  # TODO: create a field validator
             "temperature": 0.1,
-        }
+        },
+        description=(
+            "Configuration of the model:"
+            "model is the name of the llm model to use,"
+            "temperature is the sampling temperature, and",
+            "n is the number of completions to generate.",
+        ),
     )
     encoding: Any | None = None
 
@@ -695,7 +705,7 @@ class MultipleCompletionLLMModel(BaseModel):
         prompt = [
             (
                 m
-                if not isinstance(m, ToolRequestMessage) or m.tool_calls  # type: ignore[unreachable]
+                if not isinstance(m, ToolRequestMessage) or m.tool_calls
                 # OpenAI doesn't allow for empty tool_calls lists, so downcast empty
                 # ToolRequestMessage to Message here
                 else Message(role=m.role, content=m.content)

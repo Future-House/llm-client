@@ -585,7 +585,7 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.1.dev31+g02c89b9.d20241127"
+version = "0.1.dev37+g250d03e.d20241203"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -728,7 +728,7 @@ requires-dist = [
     { name = "dm-tree" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.109" },
     { name = "fh-llm-client", extras = ["local", "monitor", "nn", "rich", "server", "typing", "visualization"], marker = "extra == 'dev'" },
-    { name = "fhaviary", specifier = ">=0.8.2" },
+    { name = "fhaviary", directory = "../aviary" },
     { name = "fhaviary", extras = ["xml"], marker = "extra == 'dev'" },
     { name = "httpx" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8" },
@@ -778,22 +778,68 @@ dev = [{ name = "fh-llm-client", extras = ["dev"] }]
 
 [[package]]
 name = "fhaviary"
-version = "0.10.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.10.1.dev14+gf0e1cd5.d20241204"
+source = { editable = "../aviary" }
 dependencies = [
     { name = "docstring-parser" },
+    { name = "fh-llm-client" },
     { name = "httpx" },
     { name = "pydantic" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/88/f132078e5bd4fafbfd6115efcb59a167da2850c135be895d53b288a728a6/fhaviary-0.10.0.tar.gz", hash = "sha256:625f7bbe9f1729f3ddea9e64ecb6c29653b9c6edf302d8d25be1474212472e0e", size = 230750 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/df/3c/8194f303d6ae72e2711f9707244f916787a3c29bce063d8e58f6523009a5/fhaviary-0.10.0-py3-none-any.whl", hash = "sha256:0c801292b55588c85c7d5cf0a773f3a7cfa3d12fce98cc5df91391185a86792d", size = 42334 },
 ]
 
 [package.optional-dependencies]
 xml = [
     { name = "dicttoxml" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "aviary-gsm8k", marker = "extra == 'gsm8k'", editable = "../aviary/packages/gsm8k" },
+    { name = "aviary-gsm8k", extras = ["typing"], marker = "extra == 'dev'", editable = "../aviary/packages/gsm8k" },
+    { name = "aviary-hotpotqa", marker = "extra == 'dev'", editable = "../aviary/packages/hotpotqa" },
+    { name = "aviary-hotpotqa", marker = "extra == 'hotpotqa'", editable = "../aviary/packages/hotpotqa" },
+    { name = "boto3", marker = "extra == 'cloud'" },
+    { name = "boto3-stubs", extras = ["s3"], marker = "extra == 'typing'" },
+    { name = "click", marker = "extra == 'server'" },
+    { name = "cloudpickle", marker = "extra == 'server'" },
+    { name = "dicttoxml", marker = "extra == 'xml'" },
+    { name = "docstring-parser", specifier = ">=0.16" },
+    { name = "fastapi", marker = "extra == 'server'" },
+    { name = "fh-llm-client", directory = "." },
+    { name = "fh-llm-client", marker = "extra == 'llm'", directory = "." },
+    { name = "fhaviary", extras = ["image", "llm", "server", "typing", "xml"], marker = "extra == 'dev'", editable = "../aviary" },
+    { name = "httpx" },
+    { name = "ipython", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "litellm", marker = "python_full_version >= '3.13' and extra == 'llm'", specifier = ">=1.49.1" },
+    { name = "litellm", marker = "python_full_version < '3.13' and extra == 'llm'" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
+    { name = "numpy", marker = "extra == 'typing'" },
+    { name = "paper-qa", extras = ["ldp"], marker = "extra == 'paperqa'", specifier = ">=5" },
+    { name = "pillow", marker = "extra == 'image'" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
+    { name = "pydantic", specifier = "~=2.0" },
+    { name = "pydantic", marker = "extra == 'dev'", specifier = "~=2.9" },
+    { name = "pylint", marker = "extra == 'dev'", specifier = ">=3.2" },
+    { name = "pylint-pydantic", marker = "extra == 'dev'" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'" },
+    { name = "pytest-recording", marker = "extra == 'dev'" },
+    { name = "pytest-subtests", marker = "extra == 'dev'" },
+    { name = "pytest-sugar", marker = "extra == 'dev'" },
+    { name = "pytest-timer", extras = ["colorama"], marker = "extra == 'dev'" },
+    { name = "pytest-xdist", marker = "extra == 'dev'" },
+    { name = "refurb", marker = "extra == 'dev'", specifier = ">=2" },
+    { name = "typeguard", marker = "extra == 'dev'" },
+    { name = "types-pillow", marker = "extra == 'typing'" },
+    { name = "uvicorn", marker = "extra == 'server'" },
+]
+
+[package.metadata.requires-dev]
+codeflash = [
+    { name = "codeflash", specifier = ">=0.7" },
+    { name = "fhaviary", extras = ["dev"], editable = "../aviary" },
+]
+dev = [{ name = "fhaviary", extras = ["dev"], editable = "../aviary" }]
 
 [[package]]
 name = "filelock"

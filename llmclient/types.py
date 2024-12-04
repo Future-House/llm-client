@@ -69,6 +69,7 @@ class LLMResult(BaseModel):
         alias="answer_id",
     )
     name: str | None = None
+    config: dict | None = None
     prompt: str | list[dict] | Message | list[Message] | None = Field(
         default=None,
         description="Optional prompt or list of serialized prompts.",

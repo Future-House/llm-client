@@ -78,7 +78,7 @@ class Message(BaseModel):
 
     def __str__(self) -> str:
         return self.content or ""
-    
+
     def model_dump(self, *args, **kwargs) -> dict:
         dump = super().model_dump(*args, **kwargs)
         if self.content_is_json_str:
@@ -142,10 +142,6 @@ def join(
     return delimiter.join(
         f"{f'{m.role}: ' if include_roles else ''}{m.content or ''}" for m in msgs
     )
-
-
-class EnvStateMessage(Message):
-    """A message that contains the current state of the environment."""
 
 
 # Define separately so we can filter out this message type

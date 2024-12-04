@@ -26,7 +26,7 @@ dependencies = [
     "aiofiles",
     "coredis",
     "dm-tree",
-    "fhaviary>=0.8.2",  # For core namespace
+    "fhaviary @ /Users/maykcaldas/Documents/FutureHouse/aviary",  # "fhaviary>=0.8.2",  # For core namespace
     "httpx",
     "limits",
     "litellm>=1.44",  # For LITELLM_LOG addition
