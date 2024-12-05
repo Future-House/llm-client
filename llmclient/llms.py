@@ -16,9 +16,11 @@ from inspect import isasyncgenfunction, signature
 from typing import (
     Any,
     ClassVar,
+    Literal,
     Self,
     TypeVar,
     cast,
+    overload,
 )
 
 import litellm
@@ -605,8 +607,8 @@ class MultipleCompletionLLMModel(BaseModel):
         description=(
             "Configuration of the model:"
             "model is the name of the llm model to use,"
-            "temperature is the sampling temperature, and",
-            "n is the number of completions to generate.",
+            "temperature is the sampling temperature, and"
+            "n is the number of completions to generate."
         ),
     )
     encoding: Any | None = None
@@ -652,7 +654,7 @@ class MultipleCompletionLLMModel(BaseModel):
     # > `required` means the model must call one or more tools.
     TOOL_CHOICE_REQUIRED: ClassVar[str] = "required"
 
-    async def call(  # noqa: C901, PLR0915
+    async def _call(  # noqa: C901, PLR0915
         self,
         messages: list[Message],
         callbacks: list[Callable] | None = None,
@@ -823,3 +825,92 @@ class MultipleCompletionLLMModel(BaseModel):
             result.seconds_to_last_token = end_clock - start_clock
 
         return results
+
+    # TODO: Is it good practice to have this multiple interface?
+    # Users can just use `call` and we chat `n`
+    # or they can specifically call `call_single` or `call_multiple`
+    async def call_single(
+        self,
+        messages: list[Message],
+        callbacks: list[Callable] | None = None,
+        output_type: type[BaseModel] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
+        **chat_kwargs,
+    ) -> LLMResult:
+        if chat_kwargs.get("n", 1) != 1 or self.config.get("n", 1) != 1:
+            raise ValueError("n must be 1 for call_single.")
+        return (
+            await self._call(
+                messages, callbacks, output_type, tools, tool_choice, **chat_kwargs
+            )
+        )[0]
+
+    async def call_multiple(
+        self,
+        messages: list[Message],
+        callbacks: list[Callable] | None = None,
+        output_type: type[BaseModel] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
+        **chat_kwargs,
+    ) -> list[LLMResult]:
+        if chat_kwargs.get("n", 1) == 1:
+            logger.warning(
+                "n is 1 for call_multiple. It will return a list with a single element"
+            )
+        return await self._call(
+            messages, callbacks, output_type, tools, tool_choice, **chat_kwargs
+        )
+
+    @overload
+    async def call(
+        self,
+        messages: list[Message],
+        callbacks: list[Callable] | None = None,
+        output_type: type[BaseModel] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
+        n: Literal[1] = 1,
+        **chat_kwargs,
+    ) -> LLMResult: ...
+
+    @overload
+    async def call(
+        self,
+        messages: list[Message],
+        callbacks: list[Callable] | None = None,
+        output_type: type[BaseModel] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
+        n: int | None = None,
+        **chat_kwargs,
+    ) -> list[LLMResult]: ...
+
+    async def call(
+        self,
+        messages: list[Message],
+        callbacks: list[Callable] | None = None,
+        output_type: type[BaseModel] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
+        n: int | None = None,
+        **chat_kwargs,
+    ) -> list[LLMResult] | LLMResult:
+
+        # Uses the LLMModel configuration unless specified in chat_kwargs
+        # If n is not specified anywhere, defaults to 1
+        if not n or n <= 0:
+            logger.info(
+                "Invalid n passed to the call function. Will get it from the model's configuration"
+            )
+            n = self.config.get("n", 1)
+            if "n" in chat_kwargs:
+                n = chat_kwargs["n"]
+        if n == 1:
+            return await self.call_single(
+                messages, callbacks, output_type, tools, tool_choice, **chat_kwargs
+            )
+        return await self.call_multiple(
+            messages, callbacks, output_type, tools, tool_choice, **chat_kwargs
+        )

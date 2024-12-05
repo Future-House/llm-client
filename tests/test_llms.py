@@ -8,7 +8,7 @@ import litellm
 import numpy as np
 import pytest
 from aviary.core import Tool, ToolRequestMessage
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from llmclient.exceptions import JSONSchemaValidationError
 from llmclient.llms import (
@@ -318,68 +318,52 @@ class TestMultipleCompletionLLMModel:
             ), "Expected content in message, but got None"
             assert "red" in result.messages[-1].content.lower()
 
-
-class TestSingleCompletionLLMModel(TestMultipleCompletionLLMModel):
-    NUM_COMPLETIONS: ClassVar[int] = 1
-    DEFAULT_CONFIG: ClassVar[dict] = {}
-    MODEL_CLS: ClassVar[type[MultipleCompletionLLMModel]] = MultipleCompletionLLMModel
-
+    # Test n = 1
     @pytest.mark.parametrize(
         "model_name", [CILLMModelNames.ANTHROPIC.value, "gpt-3.5-turbo"]
     )
     @pytest.mark.asyncio
     @pytest.mark.vcr
-    async def test_model(self, model_name: str) -> None:
-        await super().test_model(model_name)
-
-    @pytest.mark.vcr
-    @pytest.mark.parametrize(
-        "model_name", [CILLMModelNames.ANTHROPIC.value, "gpt-3.5-turbo"]
-    )
-    @pytest.mark.asyncio
-    async def test_streaming(self, model_name: str) -> None:
-        model = self.MODEL_CLS(name=model_name)
+    async def test_single_completion(self, model_name: str) -> None:
+        model = self.MODEL_CLS(name=model_name, config={"n": 1})
         messages = [
             Message(role="system", content="Respond with single words."),
             Message(content="Hello, how are you?"),
         ]
-        content = []
+        result = await model.call(messages)
+        assert isinstance(result, LLMResult)
 
-        def callback(s):
-            content.append(s)
+        result = await model.call(messages, n=1)
+        assert isinstance(result, LLMResult)
+        assert result.messages
+        assert len(result.messages) == 1
+        assert result.messages[0].content
 
-        results = await model.call(messages, [callback])
-        for result in results:
-            assert result.completion_count > 0
-            assert content
-
-    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_parameterizing_tool_from_arg_union(self) -> None:
-        await super().test_parameterizing_tool_from_arg_union()
-
     @pytest.mark.vcr
-    @pytest.mark.asyncio
-    @pytest.mark.skip(reason="TODO: Check why this error should be raised")
-    async def test_output_type_rejected_validation(self) -> None:
-        class InstructionList(BaseModel):
-            instructions: list[str] = Field(description="list of instructions")
-
-        model = self.MODEL_CLS(name=CILLMModelNames.ANTHROPIC.value)
-        with pytest.raises(litellm.BadRequestError, match="anthropic"):
-            await model.call(
-                [Message(content="What are three things I should do today?")],
-                output_type=InstructionList,
-            )
-
     @pytest.mark.parametrize(
         "model_name",
-        [CILLMModelNames.ANTHROPIC.value, "gpt-4-turbo", CILLMModelNames.OPENAI.value],
+        [
+            pytest.param(CILLMModelNames.ANTHROPIC.value, id="anthropic"),
+            pytest.param(CILLMModelNames.OPENAI.value, id="openai"),
+        ],
     )
-    @pytest.mark.asyncio
-    @pytest.mark.vcr
-    async def test_text_image_message(self, model_name: str) -> None:
-        await super().test_text_image_message(model_name)
+    async def test_multiple_completion(self, model_name: str, request) -> None:
+        model = self.MODEL_CLS(name=model_name, config={"n": self.NUM_COMPLETIONS})
+        messages = [
+            Message(role="system", content="Respond with single words."),
+            Message(content="Hello, how are you?"),
+        ]
+        if request.node.callspec.id == "anthropic":
+            # Anthropic does not support multiple completions
+            with pytest.raises(litellm.BadRequestError, match="anthropic"):
+                await model.call(messages)
+        else:
+            results = await model.call(messages, n=None)
+            assert len(results) == self.NUM_COMPLETIONS
+
+            results = await model.call(messages, n=self.NUM_COMPLETIONS)
+            assert len(results) == self.NUM_COMPLETIONS
 
 
 def test_json_schema_validation() -> None:
