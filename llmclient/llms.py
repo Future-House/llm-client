@@ -855,7 +855,17 @@ class MultipleCompletionLLMModel(BaseModel):
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
         **chat_kwargs,
     ) -> list[LLMResult]:
-        if chat_kwargs.get("n", 1) == 1:
+        if chat_kwargs.get("n", 1) == 1 or self.config.get("n", 1) == 1:
+            if (
+                chat_kwargs.get("n")
+                and self.config.get("n")
+                and chat_kwargs.get("n") != self.config.get("n")
+            ):
+                raise ValueError(
+                    f"Incompatible number of completions requested. "
+                    f"Model's configuration n is {self.config['n']}, "
+                    f"but kwarg n={chat_kwargs['n']} was passed."
+                )
             logger.warning(
                 "n is 1 for call_multiple. It will return a list with a single element"
             )
