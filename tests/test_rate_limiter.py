@@ -12,6 +12,7 @@ from llmclient.llms import (
     Chunk,
     LiteLLMModel,
 )
+from llmclient.messages import Message
 from llmclient.types import LLMResult
 
 LLM_CONFIG_W_RATE_LIMITS = [
@@ -82,11 +83,15 @@ LLM_METHOD_AND_INPUTS = [
     },
     {
         "method": "achat",
-        "kwargs": {"messages": [{"role": "user", "content": RATE_LIMITER_PROMPT}]},
+        "kwargs": {
+            "messages": [Message.create_message(role="user", text=RATE_LIMITER_PROMPT)]
+        },
     },
     {
         "method": "achat_iter",
-        "kwargs": {"messages": [{"role": "user", "content": RATE_LIMITER_PROMPT}]},
+        "kwargs": {
+            "messages": [Message.create_message(role="user", text=RATE_LIMITER_PROMPT)]
+        },
     },
 ]
 

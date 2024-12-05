@@ -69,9 +69,10 @@ class LLMResult(BaseModel):
         alias="answer_id",
     )
     name: str | None = None
+    config: dict | None = None
     prompt: str | list[dict] | Message | list[Message] | None = Field(
         default=None,
-        description="Optional prompt (str) or list of serialized prompts (list[dict]).",
+        description="Optional prompt or list of serialized prompts.",
     )
     text: str = ""
     messages: list[Message] | None = Field(
@@ -107,12 +108,13 @@ class LLMResult(BaseModel):
                 logger.warning(f"Could not find cost for model {self.model}.")
         return 0.0
 
-    # These two methods were implemented in ldp, but not in pqa. Check if they're necessary
-    # @property
-    # def provider(self) -> str:
-    #     """Get the model provider's name (e.g. "openai", "mistral")."""
-    #     return litellm.get_llm_provider(self.model)[1]
+    # TODO: These two methods were implemented in ldp, but not in pqa.
+    # TODO: Check if they're necessary
+    @property
+    def provider(self) -> str:
+        """Get the model provider's name (e.g. "openai", "mistral")."""
+        return litellm.get_llm_provider(self.model)[1]
 
-    # def get_supported_openai_params(self) -> list[str] | None:
-    #     """Get the supported OpenAI parameters for the model."""
-    #     return litellm.get_supported_openai_params(self.model)
+    def get_supported_openai_params(self) -> list[str] | None:
+        """Get the supported OpenAI parameters for the model."""
+        return litellm.get_supported_openai_params(self.model)

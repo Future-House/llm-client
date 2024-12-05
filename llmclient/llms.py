@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import functools
 import json
+import logging
 from abc import ABC
 from collections.abc import (
     AsyncGenerator,
@@ -21,6 +22,7 @@ from typing import (
 )
 
 import litellm
+from aviary.tools import Tool, ToolRequestMessage, ToolsAdapter, ToolSelector
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -37,20 +39,19 @@ from llmclient.constants import (
     IS_PYTHON_BELOW_312,
 )
 from llmclient.exceptions import JSONSchemaValidationError
-from llmclient.messages import Message, ToolRequestMessage
+from llmclient.messages import Message
 from llmclient.prompts import default_system_prompt
 from llmclient.rate_limiter import GLOBAL_LIMITER
 from llmclient.types import Chunk, LLMResult
 from llmclient.utils import get_litellm_retrying_config, is_coroutine_callable
+
+logger = logging.getLogger(__name__)
 
 if not IS_PYTHON_BELOW_312:
     _DeploymentTypedDictValidator = TypeAdapter(
         list[litellm.DeploymentTypedDict],
         config=ConfigDict(arbitrary_types_allowed=True),
     )
-
-
-from aviary.core import Tool, ToolsAdapter, ToolSelector
 
 
 def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
@@ -153,13 +154,11 @@ class LLMModel(ABC, BaseModel):
         if False:  # type: ignore[unreachable]  # pylint: disable=using-constant-test
             yield  # Trick mypy: https://github.com/python/mypy/issues/5070#issuecomment-1050834495
 
-    async def achat(self, messages: Iterable[dict[str, str]]) -> Chunk:
+    async def achat(self, messages: list[Message]) -> Chunk:
         """Return the completion as string and the number of tokens in the prompt and completion."""
         raise NotImplementedError
 
-    async def achat_iter(
-        self, messages: Iterable[dict[str, str]]
-    ) -> AsyncIterable[Chunk]:
+    async def achat_iter(self, messages: list[Message]) -> AsyncIterable[Chunk]:
         """Return an async generator that yields chunks of the completion.
 
         Only the last tuple will be non-zero.
@@ -214,7 +213,7 @@ class LLMModel(ABC, BaseModel):
         """
         human_message_prompt = {"role": "user", "content": prompt}
         messages = [
-            {"role": m["role"], "content": m["content"].format(**data)}
+            Message(role=m["role"], content=m["content"].format(**data))
             for m in (
                 [{"role": "system", "content": system_prompt}, human_message_prompt]
                 if system_prompt
@@ -226,8 +225,12 @@ class LLMModel(ABC, BaseModel):
             name=name,
             prompt=messages,
             prompt_count=(
-                sum(self.count_tokens(m["content"]) for m in messages)
-                + sum(self.count_tokens(m["role"]) for m in messages)
+                sum(
+                    self.count_tokens(m.content)
+                    for m in messages
+                    if m.content is not None
+                )
+                + sum(self.count_tokens(m.role) for m in messages)
             ),
         )
 
@@ -528,10 +531,11 @@ class LiteLLMModel(LLMModel):
             )
 
     @rate_limited
-    async def achat(  # type: ignore[override]
-        self, messages: Iterable[dict[str, str]]
-    ) -> Chunk:
-        response = await self.router.acompletion(self.name, list(messages))
+    async def achat(self, messages: list[Message]) -> Chunk:  # type: ignore[override]
+        prompts = [
+            {"role": m.role, "content": m.content} for m in messages if m.content
+        ]
+        response = await self.router.acompletion(self.name, prompts)
         return Chunk(
             text=cast(litellm.Choices, response.choices[0]).message.content,
             prompt_tokens=response.usage.prompt_tokens,  # type: ignore[attr-defined]
@@ -540,11 +544,14 @@ class LiteLLMModel(LLMModel):
 
     @rate_limited
     async def achat_iter(  # type: ignore[override]
-        self, messages: Iterable[dict[str, str]]
+        self, messages: list[Message]
     ) -> AsyncIterable[Chunk]:
+        prompts = [
+            {"role": m.role, "content": m.content} for m in messages if m.content
+        ]
         completion = await self.router.acompletion(
             self.name,
-            list(messages),
+            prompts,
             stream=True,
             stream_options={"include_usage": True},
         )
@@ -579,10 +586,7 @@ class LiteLLMModel(LLMModel):
         tool_selector = ToolSelector(
             model_name=self.name, acompletion=self.router.acompletion
         )
-        return await tool_selector(*selection_args, **selection_kwargs)  # type: ignore[return-value]
-        # TODO : Fix the return type of the function
-        # TODO : It currently returns aviary.tools.base.ToolRequestMessage
-        # TODO : It should return llmclient.messages.ToolRequestMessage once aviary is updated
+        return await tool_selector(*selection_args, **selection_kwargs)
 
 
 class MultipleCompletionLLMModel(BaseModel):
@@ -594,10 +598,16 @@ class MultipleCompletionLLMModel(BaseModel):
     # if fine-tuned, this should still refer to the base model
     name: str = "unknown"
     config: dict = Field(
-        default={
-            "model": "gpt-3.5-turbo",  # Default model should have cheap input/output for testing
+        default_factory=lambda: {
+            "model": "gpt-4o-mini",  # TODO: create a field validator
             "temperature": 0.1,
-        }
+        },
+        description=(
+            "Configuration of the model:"
+            "model is the name of the llm model to use,"
+            "temperature is the sampling temperature, and",
+            "n is the number of completions to generate.",
+        ),
     )
     encoding: Any | None = None
 

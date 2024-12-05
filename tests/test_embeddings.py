@@ -1,7 +1,14 @@
+import asyncio
+from unittest.mock import patch
+
+import litellm
 import pytest
+from litellm.caching import Cache, InMemoryCache
+from pytest_subtests import SubTests
 
 from llmclient.embeddings import (
     MODEL_COST_MAP,
+    EmbeddingModel,
     HybridEmbeddingModel,
     LiteLLMEmbeddingModel,
     SentenceTransformerEmbeddingModel,
@@ -15,13 +22,52 @@ class TestLiteLLMEmbeddingModel:
     def embedding_model(self):
         return LiteLLMEmbeddingModel()
 
-    def test_default_config_injection(self, embedding_model):
-        # field_validator is only triggered if the attribute is passed
-        embedding_model = LiteLLMEmbeddingModel(config={})
+    @pytest.mark.asyncio
+    async def test_embed_documents(self, embedding_model, mocker):
+        texts = ["short text", "another short text"]
+        mocker.patch(
+            "llmclient.embeddings.LiteLLMEmbeddingModel._truncate_if_large",
+            return_value=texts,
+        )
+        mocker.patch(
+            "llmclient.embeddings.LiteLLMEmbeddingModel.check_rate_limit",
+            return_value=None,
+        )
+        mock_response = mocker.Mock()
+        mock_response.data = [
+            {"embedding": [0.1, 0.2, 0.3]},
+            {"embedding": [0.4, 0.5, 0.6]},
+        ]
+        mocker.patch("litellm.aembedding", return_value=mock_response)
 
-        config = embedding_model.config
-        assert "kwargs" in config
-        assert config["kwargs"]["timeout"] == 120
+        embeddings = await embedding_model.embed_documents(texts)
+        assert embeddings == [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+
+    @pytest.mark.parametrize(
+        ("model_name", "expected_dimensions"),
+        [
+            ("stub", None),
+            ("text-embedding-ada-002", 1536),
+            ("text-embedding-3-small", 1536),
+        ],
+    )
+    def test_model_dimension_inference(
+        self, model_name: str, expected_dimensions: int | None
+    ) -> None:
+        assert LiteLLMEmbeddingModel(name=model_name).ndim == expected_dimensions
+
+    @pytest.mark.asyncio
+    async def test_can_change_dimension(self) -> None:
+        """We run this one for real, because want to test end to end."""
+        stub_texts = ["test1", "test2"]
+
+        model = LiteLLMEmbeddingModel(name="text-embedding-3-small")
+        assert model.ndim == 1536
+
+        model = LiteLLMEmbeddingModel(name="text-embedding-3-small", ndim=8)
+        assert model.ndim == 8
+        etext1, etext2 = await model.embed_documents(stub_texts)
+        assert len(etext1) == len(etext2) == 8
 
     def test_truncate_if_large_no_truncation(self, embedding_model):
         texts = ["short text", "another short text"]
@@ -52,26 +98,94 @@ class TestLiteLLMEmbeddingModel:
         truncated_texts = embedding_model._truncate_if_large(texts)
         assert truncated_texts == ["a" * 300, "b" * 300]
 
+    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_embed_documents(self, embedding_model, mocker):
-        texts = ["short text", "another short text"]
-        mocker.patch(
-            "llmclient.embeddings.LiteLLMEmbeddingModel._truncate_if_large",
-            return_value=texts,
+    async def test_caching(self) -> None:
+        model = LiteLLMEmbeddingModel(
+            name="text-embedding-3-small", dimensions=8, embed_kwargs={"caching": True}
         )
-        mocker.patch(
-            "llmclient.embeddings.LiteLLMEmbeddingModel.check_rate_limit",
-            return_value=None,
-        )
-        mock_response = mocker.Mock()
-        mock_response.data = [
-            {"embedding": [0.1, 0.2, 0.3]},
-            {"embedding": [0.4, 0.5, 0.6]},
-        ]
-        mocker.patch("litellm.aembedding", return_value=mock_response)
+        # Make sure there is no existing cache.
+        with patch("litellm.cache", None):
+            # now create a new cache
+            litellm.cache = Cache()
+            assert isinstance(litellm.cache.cache, InMemoryCache)
+            assert len(litellm.cache.cache.cache_dict) == 0
 
-        embeddings = await embedding_model.embed_documents(texts)
-        assert embeddings == [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+            _ = await model.embed_documents(["test1"])
+            # need to do this to see the data propagated to cache
+            await asyncio.sleep(0.0)
+
+            # Check the cache entry was made
+            assert len(litellm.cache.cache.cache_dict) == 1
+
+    def test_default_config_injection(self, embedding_model):
+        # field_validator is only triggered if the attribute is passed
+        embedding_model = LiteLLMEmbeddingModel(config={})
+
+        config = embedding_model.config
+        assert "kwargs" in config
+        assert config["kwargs"]["timeout"] == 120
+
+
+@pytest.mark.asyncio
+async def test_sparse_embedding_model(subtests: SubTests):
+    with subtests.test("1D sparse"):
+        ndim = 1
+        expected_output = [[1.0], [1.0]]
+
+        model = SparseEmbeddingModel(ndim=ndim)
+        result = await model.embed_documents(["test1", "test2"])
+
+        assert result == expected_output
+
+    with subtests.test("large sparse"):
+        ndim = 1024
+
+        model = SparseEmbeddingModel(dimensions=ndim)
+        result = await model.embed_documents(["hello test", "go hello"])
+
+        assert max(result[0]) == max(result[1]) == 0.5
+
+    with subtests.test("default sparse"):
+        model = SparseEmbeddingModel()
+        result = await model.embed_documents(["test1 hello", "test2 hello"])
+
+        assert pytest.approx(sum(result[0]), abs=1e-6) == pytest.approx(
+            sum(result[1]), abs=1e-6
+        )
+
+
+@pytest.mark.asyncio
+async def test_hybrid_embedding_model() -> None:
+    hybrid_model = HybridEmbeddingModel(
+        models=[LiteLLMEmbeddingModel(), SparseEmbeddingModel()]
+    )
+
+    # Mock the embedded documents of Lite and Sparse models
+    with (
+        patch.object(
+            LiteLLMEmbeddingModel, "embed_documents", return_value=[[1.0], [2.0]]
+        ),
+        patch.object(
+            SparseEmbeddingModel, "embed_documents", return_value=[[3.0], [4.0]]
+        ),
+    ):
+        result = await hybrid_model.embed_documents(["hello", "world"])
+    assert result == [[1.0, 3.0], [2.0, 4.0]]
+
+
+@pytest.mark.asyncio
+async def test_class_constructor() -> None:
+    original_name = "hybrid-text-embedding-3-small"
+    model = EmbeddingModel.from_name(original_name)
+    assert isinstance(model, HybridEmbeddingModel)
+    assert model.name == original_name
+    dense_model, sparse_model = model.models
+    assert dense_model.name == "text-embedding-3-small"
+    assert dense_model.ndim == 1536
+    assert sparse_model.name == "sparse"
+    assert sparse_model.ndim == 256
+    assert model.ndim == 1792
 
 
 @pytest.mark.asyncio

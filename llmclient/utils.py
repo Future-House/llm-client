@@ -4,7 +4,7 @@ import io
 import logging
 import logging.config
 from collections.abc import Callable
-from inspect import iscoroutinefunction, isfunction, signature
+from inspect import iscoroutinefunction, isfunction, ismethod, signature
 from typing import Any
 
 import litellm
@@ -45,7 +45,7 @@ def prepare_args(
 
 
 def is_coroutine_callable(obj):
-    if isfunction(obj):
+    if isfunction(obj) or ismethod(obj):
         return iscoroutinefunction(obj)
     elif callable(obj):  # noqa: RET505
         return iscoroutinefunction(obj.__call__)
