@@ -915,8 +915,6 @@ class MultipleCompletionLLMModel(BaseModel):
                 "Invalid n passed to the call function. Will get it from the model's configuration"
             )
             n = self.config.get("n", 1)
-            if "n" in chat_kwargs:
-                n = chat_kwargs["n"]
         if n == 1:
             return await self.call_single(
                 messages, callbacks, output_type, tools, tool_choice, **chat_kwargs
