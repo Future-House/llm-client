@@ -23,21 +23,14 @@ classifiers = [
 ]
 dependencies = [
     "PyMuPDF>=1.24.12",  # For pymupdf.set_messages addition
-    "aiofiles",
     "coredis",
-    "dm-tree",
     "fhaviary>=0.8.2",  # For core namespace
-    "httpx",
     "limits",
     "litellm>=1.44",  # For LITELLM_LOG addition
-    "networkx[default]~=3.4",  # Pin for pydot fix
     "numpy",
     "pydantic~=2.0,>=2.10.1,<2.10.2",
-    "tenacity",
     "tiktoken>=0.4.0",
-    "tqdm",
     "typing-extensions; python_version <= '3.11'",  # for typing.override
-    "usearch>=2.13",  # For py.typed
 ]
 description = "A client to provide LLM responses for FutureHouse applications."
 dynamic = ["version"]
@@ -48,15 +41,13 @@ requires-python = ">=3.11"
 
 [project.optional-dependencies]
 dev = [
-    "fh-llm-client[monitor,nn,rich,server,typing,visualization,local]",
+    "fh-llm-client[image,local]",
     "fhaviary[xml]",
     "ipython>=8",  # Pin to keep recent
     "mypy>=1.8",  # Pin for mutable-override
     "pre-commit>=3.4",  # Pin to keep recent
-    "pydantic~=2.0",
     "pylint-pydantic",
     "pytest-asyncio",
-    "pytest-mock",
     "pytest-mock",
     "pytest-recording",
     "pytest-rerunfailures",
@@ -73,26 +64,6 @@ image = [
 ]
 local = [
     "sentence-transformers",
-]
-monitor = [
-    "wandb",
-]
-nn = [
-    "torch>=2.2",
-]
-rich = [
-    "rich",
-    "tqdm>=4.56",  # When tqdm.rich was created
-]
-server = [
-    "fastapi>=0.109",  # For Python 3.12 support
-]
-typing = [
-    "types-aiofiles",
-    "types-tqdm",
-]
-visualization = [
-    "pydot>=3.0.1",  # Matching networkx[extra]==3.4 version, SEE: https://github.com/networkx/networkx/blob/networkx-3.4/pyproject.toml#L92C6-L92C18
 ]
 
 [project.urls]
@@ -177,8 +148,6 @@ warn_unused_ignores = true
 ignore_missing_imports = true
 # Per-module configuration options
 module = [
-    "networkx",  # SEE: https://github.com/networkx/networkx/issues/3988
-    "pydot",
     "tree",  # SEE: https://github.com/google-deepmind/tree/issues/84
 ]
 
