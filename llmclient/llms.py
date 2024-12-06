@@ -605,8 +605,8 @@ class MultipleCompletionLLMModel(BaseModel):
         description=(
             "Configuration of the model:"
             "model is the name of the llm model to use,"
-            "temperature is the sampling temperature, and",
-            "n is the number of completions to generate.",
+            "temperature is the sampling temperature, and"
+            "n is the number of completions to generate."
         ),
     )
     encoding: Any | None = None
