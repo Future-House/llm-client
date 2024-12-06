@@ -861,7 +861,7 @@ class MultipleCompletionLLMModel(BaseModel):
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
         **chat_kwargs,
     ) -> list[LLMResult]:
-        if chat_kwargs.get("n", 1) == 1 or self.config.get("n", 1) == 1:
+        if 1 in {chat_kwargs.get("n", 1), self.config.get("n", 1)}:
             if (
                 chat_kwargs.get("n")
                 and self.config.get("n")

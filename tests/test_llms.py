@@ -332,7 +332,8 @@ class TestMultipleCompletionLLMModel:
         result = await model.call(messages)
         assert isinstance(result, LLMResult)
 
-        result = await model.call(messages, n=1)
+        result = await model.call(messages, n=1)  # noqa: FURB120
+
         assert isinstance(result, LLMResult)
         assert result.messages
         assert len(result.messages) == 1
@@ -358,7 +359,7 @@ class TestMultipleCompletionLLMModel:
             with pytest.raises(litellm.BadRequestError, match="anthropic"):
                 await model.call(messages)
         else:
-            results = await model.call(messages, n=None)
+            results = await model.call(messages, n=None)  # noqa: FURB120
             assert len(results) == self.NUM_COMPLETIONS
 
             results = await model.call(messages, n=self.NUM_COMPLETIONS)
