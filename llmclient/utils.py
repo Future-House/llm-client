@@ -1,38 +1,17 @@
-import base64
 import contextlib
-import io
 import logging
 import logging.config
 from collections.abc import Callable
-from inspect import iscoroutinefunction, isfunction, ismethod, signature
+from inspect import signature
 from typing import Any
 
 import litellm
-import numpy as np
 import pymupdf
 
 
 def get_litellm_retrying_config(timeout: float = 60.0) -> dict[str, Any]:
     """Get retrying configuration for litellm.acompletion and litellm.aembedding."""
     return {"num_retries": 3, "timeout": timeout}
-
-
-def encode_image_to_base64(img: "np.ndarray") -> str:
-    """Encode an image to a base64 string, to be included as an image_url in a Message."""
-    try:
-        from PIL import Image
-    except ImportError as e:
-        raise ImportError(
-            "Image processing requires the 'image' extra for 'Pillow'. Please:"
-            " `pip install fh-llm-client[image]`."
-        ) from e
-
-    image = Image.fromarray(img)
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    return (
-        f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"
-    )
 
 
 def prepare_args(
@@ -42,14 +21,6 @@ def prepare_args(
         if "name" in signature(func).parameters:
             return (chunk,), {"name": name}
     return (chunk,), {}
-
-
-def is_coroutine_callable(obj):
-    if isfunction(obj) or ismethod(obj):
-        return iscoroutinefunction(obj)
-    elif callable(obj):  # noqa: RET505
-        return iscoroutinefunction(obj.__call__)
-    return False
 
 
 def partial_format(value: str, **formats: dict[str, Any]) -> str:
