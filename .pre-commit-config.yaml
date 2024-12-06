@@ -72,7 +72,6 @@ repos:
         args: [--pretty, --ignore-missing-imports]
         additional_dependencies:
           - aiohttp
-          - PyMuPDF>=1.24.12
           - coredis
           - fhaviary[llm]>=0.8.2 # Match pyproject.toml
           - litellm>=1.44 # Match pyproject.toml

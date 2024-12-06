@@ -1,12 +1,7 @@
 import contextlib
-import logging
-import logging.config
 from collections.abc import Callable
 from inspect import signature
 from typing import Any
-
-import litellm
-import pymupdf
 
 
 def get_litellm_retrying_config(timeout: float = 60.0) -> dict[str, Any]:
@@ -29,30 +24,3 @@ def partial_format(value: str, **formats: dict[str, Any]) -> str:
         with contextlib.suppress(KeyError):
             value = value.format(**{template_key: template_value})
     return value
-
-
-def setup_default_logs() -> None:
-    """Configure logs to reasonable defaults."""
-    # Trigger PyMuPDF to use Python logging
-    # SEE: https://pymupdf.readthedocs.io/en/latest/app3.html#diagnostics
-    pymupdf.set_messages(pylogging=True)
-
-    # Set sane default LiteLLM logging configuration
-    # SEE: https://docs.litellm.ai/docs/observability/telemetry
-    litellm.telemetry = False
-
-    logging.config.dictConfig(
-        {
-            "version": 1,
-            "disable_existing_loggers": False,
-            # Lower level for verbose logs
-            "loggers": {
-                "httpcore": {"level": "WARNING"},
-                "httpx": {"level": "WARNING"},
-                # SEE: https://github.com/BerriAI/litellm/issues/2256
-                "LiteLLM": {"level": "WARNING"},
-                "LiteLLM Router": {"level": "WARNING"},
-                "LiteLLM Proxy": {"level": "WARNING"},
-            },
-        }
-    )

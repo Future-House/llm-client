@@ -14,9 +14,6 @@ from .llms import (
     MultipleCompletionLLMModel,
 )
 from .types import LLMResult
-from .utils import (
-    setup_default_logs,
-)
 
 __all__ = [
     "EmbeddingModel",
@@ -29,5 +26,4 @@ __all__ = [
     "MultipleCompletionLLMModel",
     "SentenceTransformerEmbeddingModel",
     "SparseEmbeddingModel",
-    "setup_default_logs",
 ]
