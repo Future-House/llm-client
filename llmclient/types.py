@@ -5,14 +5,13 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 import litellm
+from aviary.core import Message
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     computed_field,
 )
-
-from llmclient.messages import Message
 
 logger = logging.getLogger(__name__)
 

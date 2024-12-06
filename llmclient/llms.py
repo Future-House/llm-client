@@ -22,7 +22,14 @@ from typing import (
 )
 
 import litellm
-from aviary.tools import Tool, ToolRequestMessage, ToolsAdapter, ToolSelector
+from aviary.core import (
+    Message,
+    Tool,
+    ToolRequestMessage,
+    ToolsAdapter,
+    ToolSelector,
+    is_coroutine_callable,
+)
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -39,11 +46,10 @@ from llmclient.constants import (
     IS_PYTHON_BELOW_312,
 )
 from llmclient.exceptions import JSONSchemaValidationError
-from llmclient.messages import Message
 from llmclient.prompts import default_system_prompt
 from llmclient.rate_limiter import GLOBAL_LIMITER
 from llmclient.types import Chunk, LLMResult
-from llmclient.utils import get_litellm_retrying_config, is_coroutine_callable
+from llmclient.utils import get_litellm_retrying_config
 
 logger = logging.getLogger(__name__)
 
