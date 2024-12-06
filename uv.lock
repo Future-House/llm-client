@@ -564,7 +564,7 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.0.4.dev6+g6de1e91.d20241206"
+version = "0.0.4.dev6+g2eac4a6.d20241206"
 source = { editable = "." }
 dependencies = [
     { name = "coredis" },
