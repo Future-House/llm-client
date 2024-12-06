@@ -4,6 +4,7 @@ from itertools import product
 from typing import Any
 
 import pytest
+from aviary.core import Message
 from limits import RateLimitItemPerSecond
 
 from llmclient.constants import CHARACTERS_PER_TOKEN_ASSUMPTION
@@ -12,7 +13,6 @@ from llmclient.llms import (
     Chunk,
     LiteLLMModel,
 )
-from llmclient.messages import Message
 from llmclient.types import LLMResult
 
 LLM_CONFIG_W_RATE_LIMITS = [
