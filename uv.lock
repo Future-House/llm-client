@@ -563,14 +563,13 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.0.4.dev6+g6de1e91.d20241206"
+version = "0.0.4.dev3+g418fa3b.d20241209"
 source = { editable = "." }
 dependencies = [
     { name = "coredis" },
     { name = "fhaviary" },
     { name = "limits" },
     { name = "litellm" },
-    { name = "numpy" },
     { name = "pydantic" },
     { name = "tiktoken" },
     { name = "typing-extensions", marker = "python_full_version < '3.12'" },
@@ -581,7 +580,7 @@ dev = [
     { name = "fhaviary", extra = ["xml"] },
     { name = "ipython" },
     { name = "mypy" },
-    { name = "pillow" },
+    { name = "numpy" },
     { name = "pre-commit" },
     { name = "pylint-pydantic" },
     { name = "pytest" },
@@ -597,10 +596,8 @@ dev = [
     { name = "refurb" },
     { name = "sentence-transformers" },
 ]
-image = [
-    { name = "pillow" },
-]
 local = [
+    { name = "numpy" },
     { name = "sentence-transformers" },
 ]
 
@@ -610,7 +607,7 @@ codeflash = [
     { name = "fhaviary", extra = ["xml"] },
     { name = "ipython" },
     { name = "mypy" },
-    { name = "pillow" },
+    { name = "numpy" },
     { name = "pre-commit" },
     { name = "pylint-pydantic" },
     { name = "pytest" },
@@ -630,7 +627,7 @@ dev = [
     { name = "fhaviary", extra = ["xml"] },
     { name = "ipython" },
     { name = "mypy" },
-    { name = "pillow" },
+    { name = "numpy" },
     { name = "pre-commit" },
     { name = "pylint-pydantic" },
     { name = "pytest" },
@@ -650,15 +647,14 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "coredis" },
-    { name = "fh-llm-client", extras = ["image", "local"], marker = "extra == 'dev'" },
+    { name = "fh-llm-client", extras = ["local"], marker = "extra == 'dev'" },
     { name = "fhaviary", specifier = ">=0.8.2" },
     { name = "fhaviary", extras = ["xml"], marker = "extra == 'dev'" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "limits" },
     { name = "litellm", specifier = ">=1.44" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
-    { name = "numpy" },
-    { name = "pillow", marker = "extra == 'image'" },
+    { name = "numpy", marker = "extra == 'local'" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
     { name = "pydantic", specifier = "~=2.0,>=2.10.1,<2.10.2" },
     { name = "pylint-pydantic", marker = "extra == 'dev'" },
