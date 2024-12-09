@@ -1,10 +1,10 @@
 import asyncio
 from abc import ABC, abstractmethod
+from collections import Counter
 from enum import StrEnum
 from typing import Any
 
 import litellm
-import numpy as np
 import tiktoken
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -171,13 +171,9 @@ class SparseEmbeddingModel(EmbeddingModel):
         enc_batch = self.enc.encode_ordinary_batch(texts)
         # now get frequency of each token rel to length
         return [
-            (
-                np.bincount([xi % self.ndim for xi in x], minlength=self.ndim).astype(
-                    float
-                )
-                / len(x)
-            ).tolist()
+            [token_counts.get(i, 0) / len(x) for i in range(self.ndim)]
             for x in enc_batch
+            if (token_counts := Counter(xi % self.ndim for xi in x))
         ]
 
 
@@ -199,7 +195,11 @@ class HybridEmbeddingModel(EmbeddingModel):
         all_embeds = await asyncio.gather(
             *[m.embed_documents(texts) for m in self.models]
         )
-        return np.concatenate(all_embeds, axis=1).tolist()
+
+        return [
+            [val for sublist in embed_group for val in sublist]
+            for embed_group in zip(*all_embeds, strict=True)
+        ]
 
     def set_mode(self, mode: EmbeddingModes) -> None:
         # Set mode for all component models
@@ -217,6 +217,7 @@ class SentenceTransformerEmbeddingModel(EmbeddingModel):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         try:
+            import numpy as np
             from sentence_transformers import SentenceTransformer
         except ImportError as exc:
             raise ImportError(
@@ -240,6 +241,8 @@ class SentenceTransformerEmbeddingModel(EmbeddingModel):
         Returns:
             A list of embedding vectors.
         """
+        import numpy as np
+
         # Extract additional configurations if needed
         batch_size = self.config.get("batch_size", 32)
         device = self.config.get("device", "cpu")
