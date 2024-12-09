@@ -26,7 +26,6 @@ dependencies = [
     "fhaviary>=0.8.2",  # For core namespace
     "limits",
     "litellm>=1.44",  # For LITELLM_LOG addition
-    "numpy",
     "pydantic~=2.0,>=2.10.1,<2.10.2",
     "tiktoken>=0.4.0",
     "typing-extensions; python_version <= '3.11'",  # for typing.override
@@ -40,7 +39,7 @@ requires-python = ">=3.11"
 
 [project.optional-dependencies]
 dev = [
-    "fh-llm-client[image,local]",
+    "fh-llm-client[local]",
     "fhaviary[xml]",
     "ipython>=8",  # Pin to keep recent
     "mypy>=1.8",  # Pin for mutable-override
@@ -58,10 +57,8 @@ dev = [
     "python-dotenv",
     "refurb>=2",  # Pin to keep recent
 ]
-image = [
-    "Pillow",
-]
 local = [
+    "numpy",
     "sentence-transformers",
 ]
 
