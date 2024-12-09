@@ -892,8 +892,8 @@ class MultipleCompletionLLMModel(BaseModel):
 
         Raises:
             Warning: If the number of completions (`n`) requested is set to 1,
-            a warning is logged indicating that the returned list will contain a single element.
-            `n` can be set in chat_kargs or in the model's configuration.
+                a warning is logged indicating that the returned list will contain a single element.
+                `n` can be set in chat_kargs or in the model's configuration.
         """
         n = chat_kwargs.get("n", self.config.get("n", 1))
         if n == 1:
@@ -948,7 +948,7 @@ class MultipleCompletionLLMModel(BaseModel):
             tools: A list of tools to use during the call.
             tool_choice: The tool or tool identifier to use.
             n: An integer argument that specifies the number of completions to generate.
-            If n is not specified, the model's configuration is used.
+                If n is not specified, the model's configuration is used.
             **chat_kwargs: Additional keyword arguments to pass to the chat function.
 
         Returns:
