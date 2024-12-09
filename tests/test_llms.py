@@ -317,7 +317,6 @@ class TestMultipleCompletionLLMModel:
             ), "Expected content in message, but got None"
             assert "red" in result.messages[-1].content.lower()
 
-    # Test n = 1
     @pytest.mark.parametrize(
         "model_name", [CILLMModelNames.ANTHROPIC.value, "gpt-3.5-turbo"]
     )
@@ -334,6 +333,13 @@ class TestMultipleCompletionLLMModel:
 
         result = await model.call(messages, n=1)  # noqa: FURB120
 
+        assert isinstance(result, LLMResult)
+        assert result.messages
+        assert len(result.messages) == 1
+        assert result.messages[0].content
+
+        model = self.MODEL_CLS(name=model_name, config={"n": 2})
+        result = await model.call(messages, n=1)
         assert isinstance(result, LLMResult)
         assert result.messages
         assert len(result.messages) == 1
@@ -362,6 +368,10 @@ class TestMultipleCompletionLLMModel:
             results = await model.call(messages, n=None)  # noqa: FURB120
             assert len(results) == self.NUM_COMPLETIONS
 
+            results = await model.call(messages, n=self.NUM_COMPLETIONS)
+            assert len(results) == self.NUM_COMPLETIONS
+
+            model = self.MODEL_CLS(name=model_name, config={"n": 1})
             results = await model.call(messages, n=self.NUM_COMPLETIONS)
             assert len(results) == self.NUM_COMPLETIONS
 
