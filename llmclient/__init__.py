@@ -10,6 +10,7 @@ from .embeddings import (
     LiteLLMEmbeddingModel,
     SentenceTransformerEmbeddingModel,
     SparseEmbeddingModel,
+    embedding_model_factory,
 )
 from .exceptions import (
     JSONSchemaValidationError,
@@ -42,4 +43,5 @@ __all__ = [
     "MultipleCompletionLLMModel",
     "SentenceTransformerEmbeddingModel",
     "SparseEmbeddingModel",
+    "embedding_model_factory",
 ]
