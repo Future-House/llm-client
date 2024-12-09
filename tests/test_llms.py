@@ -339,7 +339,7 @@ class TestMultipleCompletionLLMModel:
         assert result.messages[0].content
 
         model = self.MODEL_CLS(name=model_name, config={"n": 2})
-        result = await model.call(messages, n=1) # noqa: FURB120
+        result = await model.call(messages, n=1)  # noqa: FURB120
         assert isinstance(result, LLMResult)
         assert result.messages
         assert len(result.messages) == 1
