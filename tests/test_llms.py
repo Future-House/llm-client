@@ -271,8 +271,19 @@ class TestMultipleCompletionLLMModel:
 
     @pytest.mark.asyncio
     @pytest.mark.vcr
-    async def test_output_schema(self) -> None:
-        model = self.MODEL_CLS(name="gpt-3.5-turbo", config=self.DEFAULT_CONFIG)
+    @pytest.mark.parametrize(
+        ("model_name", "output_type"),
+        [
+            pytest.param("gpt-3.5-turbo", DummyOutputSchema, id="json-mode"),
+            pytest.param(
+                "gpt-4o", DummyOutputSchema.model_json_schema(), id="structured-outputs"
+            ),
+        ],
+    )
+    async def test_output_schema(
+        self, model_name: str, output_type: type[BaseModel] | dict[str, Any]
+    ) -> None:
+        model = self.MODEL_CLS(name=model_name, config=self.DEFAULT_CONFIG)
         messages = [
             Message(
                 content=(
@@ -280,7 +291,7 @@ class TestMultipleCompletionLLMModel:
                 )
             ),
         ]
-        results = await self.call_model(model, messages, output_type=DummyOutputSchema)
+        results = await self.call_model(model, messages, output_type=output_type)
         assert len(results) == self.NUM_COMPLETIONS
         for result in results:
             assert result.messages
