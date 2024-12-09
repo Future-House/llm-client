@@ -612,7 +612,7 @@ class MultipleCompletionLLMModel(BaseModel):
             "Configuration of the model:"
             "model is the name of the llm model to use,"
             "temperature is the sampling temperature, and"
-            "n is the number of completions to generate."
+            "n is the number of completions to generate by default."
         ),
     )
     encoding: Any | None = None
@@ -667,6 +667,23 @@ class MultipleCompletionLLMModel(BaseModel):
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
         **chat_kwargs,
     ) -> list[LLMResult]:
+        """
+        Call the LLM model with the given messages and configuration.
+
+        Args:
+            messages: A list of messages to send to the language model.
+            callbacks: A list of callback functions to execute after receiving the response.
+            output_type: The type of the output model.
+            tools: A list of tools to use during the call.
+            tool_choice: The tool or tool identifier to use.
+            **chat_kwargs: Additional keyword arguments to pass to the chat function.
+
+        Returns:
+            A list of LLMResult objects containing the results of the call.
+
+        Raises:
+            ValueError: If the number of completions (n) is invalid.
+        """
         start_clock = asyncio.get_running_loop().time()
 
         # Deal with tools. Note OpenAI throws a 400 response if tools is empty:
@@ -829,3 +846,18 @@ class MultipleCompletionLLMModel(BaseModel):
             result.seconds_to_last_token = end_clock - start_clock
 
         return results
+
+    async def call_single(
+        self,
+        messages: list[Message],
+        callbacks: list[Callable] | None = None,
+        output_type: type[BaseModel] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
+        **chat_kwargs,
+    ) -> LLMResult:
+        return (
+            await self.call(
+                messages, callbacks, output_type, tools, tool_choice, n=1, **chat_kwargs
+            )
+        )[0]
