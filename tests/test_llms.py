@@ -328,10 +328,8 @@ class TestMultipleCompletionLLMModel:
             Message(role="system", content="Respond with single words."),
             Message(content="Hello, how are you?"),
         ]
-        result = await model.call(messages)
+        result = await model.call_single(messages)
         assert isinstance(result, LLMResult)
-
-        result = await model.call(messages, n=1)  # noqa: FURB120
 
         assert isinstance(result, LLMResult)
         assert result.messages
@@ -339,7 +337,7 @@ class TestMultipleCompletionLLMModel:
         assert result.messages[0].content
 
         model = self.MODEL_CLS(name=model_name, config={"n": 2})
-        result = await model.call(messages, n=1)  # noqa: FURB120
+        result = await model.call_single(messages)
         assert isinstance(result, LLMResult)
         assert result.messages
         assert len(result.messages) == 1
@@ -365,13 +363,10 @@ class TestMultipleCompletionLLMModel:
             with pytest.raises(litellm.BadRequestError, match="anthropic"):
                 await model.call(messages)
         else:
-            results = await model.call(messages, n=None)  # noqa: FURB120
+            results = await model.call(messages)  # noqa: FURB120
             assert len(results) == self.NUM_COMPLETIONS
 
-            results = await model.call(messages, n=self.NUM_COMPLETIONS)
-            assert len(results) == self.NUM_COMPLETIONS
-
-            model = self.MODEL_CLS(name=model_name, config={"n": 1})
+            model = self.MODEL_CLS(name=model_name, config={"n": 5})
             results = await model.call(messages, n=self.NUM_COMPLETIONS)
             assert len(results) == self.NUM_COMPLETIONS
 

@@ -16,11 +16,9 @@ from inspect import isasyncgenfunction, signature
 from typing import (
     Any,
     ClassVar,
-    Literal,
     Self,
     TypeVar,
     cast,
-    overload,
 )
 
 import litellm
@@ -660,7 +658,7 @@ class MultipleCompletionLLMModel(BaseModel):
     # > `required` means the model must call one or more tools.
     TOOL_CHOICE_REQUIRED: ClassVar[str] = "required"
 
-    async def _call(  # noqa: C901, PLR0915
+    async def call(  # noqa: C901, PLR0915
         self,
         messages: list[Message],
         callbacks: list[Callable] | None = None,
@@ -669,6 +667,23 @@ class MultipleCompletionLLMModel(BaseModel):
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
         **chat_kwargs,
     ) -> list[LLMResult]:
+        """
+        Call the LLM model with the given messages and configuration.
+
+        Args:
+            messages: A list of messages to send to the language model.
+            callbacks: A list of callback functions to execute after receiving the response.
+            output_type: The type of the output model.
+            tools: A list of tools to use during the call.
+            tool_choice: The tool or tool identifier to use.
+            **chat_kwargs: Additional keyword arguments to pass to the chat function.
+
+        Returns:
+            A list of LLMResult objects containing the results of the call.
+
+        Raises:
+            ValueError: If the number of completions (n) is invalid.
+        """
         start_clock = asyncio.get_running_loop().time()
 
         # Deal with tools. Note OpenAI throws a 400 response if tools is empty:
@@ -841,134 +856,8 @@ class MultipleCompletionLLMModel(BaseModel):
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
         **chat_kwargs,
     ) -> LLMResult:
-        """
-        Calls the LLM with a list of messages and returns a single completion result.
-
-        Args:
-            messages: A list of messages to send to the LLM.
-            callbacks: A list of callback functions to execute after the call.
-            output_type: The type of the output model.
-            tools: A list of tools to use during the call.
-            tool_choice: The tool or tool choice to use.
-            **chat_kwargs: Additional keyword arguments for the chat.
-
-        Returns:
-            The result of the LLM call as a LLMResult object.
-
-        Raises:
-            ValueError: If the value of 'n' is not 1.
-        """
-        n = chat_kwargs.get("n", self.config.get("n", 1))
-        if n != 1:
-            raise ValueError("n must be 1 for call_single.")
         return (
-            await self._call(
-                messages, callbacks, output_type, tools, tool_choice, **chat_kwargs
+            await self.call(
+                messages, callbacks, output_type, tools, tool_choice, n=1, **chat_kwargs
             )
         )[0]
-
-    async def call_multiple(
-        self,
-        messages: list[Message],
-        callbacks: list[Callable] | None = None,
-        output_type: type[BaseModel] | None = None,
-        tools: list[Tool] | None = None,
-        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
-        **chat_kwargs,
-    ) -> list[LLMResult]:
-        """
-        Calls the LLM with a list of messages and returns a list of completion results.
-
-        Args:
-            messages: A list of messages to send to the LLM.
-            callbacks: A list of callback functions to execute after receiving the response.
-            output_type: The type of the output model.
-            tools: A list of tools to use during the call.
-            tool_choice: The tool or tool choice strategy to use.
-            **chat_kwargs: Additional keyword arguments to pass to the chat function.
-
-        Returns:
-            A list of results from the LLM.
-
-        Raises:
-            Warning: If the number of completions (`n`) requested is set to 1,
-                a warning is logged indicating that the returned list will contain a single element.
-                `n` can be set in chat_kargs or in the model's configuration.
-        """
-        n = chat_kwargs.get("n", self.config.get("n", 1))
-        if n == 1:
-            logger.warning(
-                "n is 1 for call_multiple. It will return a list with a single element"
-            )
-        return await self._call(
-            messages, callbacks, output_type, tools, tool_choice, **chat_kwargs
-        )
-
-    @overload
-    async def call(
-        self,
-        messages: list[Message],
-        callbacks: list[Callable] | None = None,
-        output_type: type[BaseModel] | None = None,
-        tools: list[Tool] | None = None,
-        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
-        n: Literal[1] = 1,
-        **chat_kwargs,
-    ) -> LLMResult: ...
-
-    @overload
-    async def call(
-        self,
-        messages: list[Message],
-        callbacks: list[Callable] | None = None,
-        output_type: type[BaseModel] | None = None,
-        tools: list[Tool] | None = None,
-        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
-        n: int | None = None,
-        **chat_kwargs,
-    ) -> list[LLMResult]: ...
-
-    async def call(
-        self,
-        messages: list[Message],
-        callbacks: list[Callable] | None = None,
-        output_type: type[BaseModel] | None = None,
-        tools: list[Tool] | None = None,
-        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
-        n: int | None = None,
-        **chat_kwargs,
-    ) -> list[LLMResult] | LLMResult:
-        """
-        Call the LLM model with the given messages and configuration.
-
-        Args:
-            messages: A list of messages to send to the language model.
-            callbacks: A list of callback functions to execute after receiving the response.
-            output_type: The type of the output model.
-            tools: A list of tools to use during the call.
-            tool_choice: The tool or tool identifier to use.
-            n: An integer argument that specifies the number of completions to generate.
-                If n is not specified, the model's configuration is used.
-            **chat_kwargs: Additional keyword arguments to pass to the chat function.
-
-        Returns:
-            A list of LLMResult objects if multiple completions are requested (n>1),
-            otherwise a single LLMResult object.
-
-        Raises:
-            ValueError: If the number of completions `n` is invalid.
-        """
-        if not n or n <= 0:
-            logger.info(
-                "Invalid number of completions `n` requested to the call function. "
-                "Will get it from the model's configuration."
-            )
-            n = self.config.get("n", 1)
-        chat_kwargs["n"] = n
-        if n == 1:
-            return await self.call_single(
-                messages, callbacks, output_type, tools, tool_choice, **chat_kwargs
-            )
-        return await self.call_multiple(
-            messages, callbacks, output_type, tools, tool_choice, **chat_kwargs
-        )
