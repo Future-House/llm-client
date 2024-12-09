@@ -60,7 +60,6 @@ dev = [
 local = [
     "numpy",
     "sentence-transformers",
-    "numpy",
 ]
 
 [project.urls]

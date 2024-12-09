@@ -1,7 +1,6 @@
 import asyncio
 from abc import ABC, abstractmethod
 from collections import Counter
-from collections import Counter
 from enum import StrEnum
 from itertools import chain
 from typing import Any
@@ -175,7 +174,6 @@ class SparseEmbeddingModel(EmbeddingModel):
         return [
             [token_counts.get(xi, 0) / len(x) for xi in range(self.ndim)]
             for x in enc_batch
-            if (token_counts := Counter(xi % self.ndim for xi in x))
             if (token_counts := Counter(xi % self.ndim for xi in x))
         ]
 
