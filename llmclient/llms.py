@@ -701,6 +701,9 @@ class MultipleCompletionLLMModel(BaseModel):
         Raises:
             ValueError: If the number of completions (n) is invalid.
         """
+        # add static configuration to kQwargs
+        chat_kwargs = self.config | chat_kwargs
+
         start_clock = asyncio.get_running_loop().time()
 
         # Deal with tools. Note OpenAI throws a 400 response if tools is empty:
@@ -723,6 +726,10 @@ class MultipleCompletionLLMModel(BaseModel):
 
         # deal with specifying output type
         if isinstance(output_type, Mapping):  # Use structured outputs
+            model_name: str = chat_kwargs.get("model", "")
+            if not litellm.supports_response_schema(model_name, None):
+                raise ValueError(f"Model {model_name} does not support JSON schema.")
+
             chat_kwargs["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
@@ -751,8 +758,6 @@ class MultipleCompletionLLMModel(BaseModel):
             ]
             chat_kwargs["response_format"] = {"type": "json_object"}
 
-        # add static configuration to kwargs
-        chat_kwargs = self.config | chat_kwargs
         n = chat_kwargs.get("n", 1)  # number of completions
         if n < 1:
             raise ValueError("Number of completions (n) must be >= 1.")
