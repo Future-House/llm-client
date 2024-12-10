@@ -11,12 +11,14 @@ from collections.abc import (
     Awaitable,
     Callable,
     Iterable,
+    Mapping,
 )
 from inspect import isasyncgenfunction, signature
 from typing import (
     Any,
     ClassVar,
     Self,
+    TypeAlias,
     TypeVar,
     cast,
 )
@@ -59,6 +61,10 @@ if not IS_PYTHON_BELOW_312:
         config=ConfigDict(arbitrary_types_allowed=True),
     )
 
+# Yes, this is a hack, it mostly matches
+# https://github.com/python-jsonschema/referencing/blob/v0.35.1/referencing/jsonschema.py#L20-L21
+JSONSchema: TypeAlias = Mapping[str, Any]
+
 
 def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
     """Calculate the sum of the log probabilities of an LLM completion (a Choices object).
@@ -84,13 +90,13 @@ def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
 
 
 def validate_json_completion(
-    completion: litellm.ModelResponse, output_type: type[BaseModel]
+    completion: litellm.ModelResponse, output_type: type[BaseModel] | JSONSchema
 ) -> None:
     """Validate a completion against a JSON schema.
 
     Args:
         completion: The completion to validate.
-        output_type: The Pydantic model to validate the completion against.
+        output_type: A JSON schema or a Pydantic model to validate the completion.
     """
     try:
         for choice in completion.choices:
@@ -102,7 +108,12 @@ def validate_json_completion(
             choice.message.content = (
                 choice.message.content.split("```json")[-1].split("```")[0] or ""
             )
-            output_type.model_validate_json(choice.message.content)
+            if isinstance(output_type, Mapping):  # JSON schema
+                litellm.litellm_core_utils.json_validation_rule.validate_schema(
+                    schema=dict(output_type), response=choice.message.content
+                )
+            else:
+                output_type.model_validate_json(choice.message.content)
     except ValidationError as err:
         raise JSONSchemaValidationError(
             "The completion does not match the specified schema."
@@ -655,14 +666,20 @@ class MultipleCompletionLLMModel(BaseModel):
         )
 
     # SEE: https://platform.openai.com/docs/api-reference/chat/create#chat-create-tool_choice
+    # > `none` means the model will not call any tool and instead generates a message.
+    # > `auto` means the model can pick between generating a message or calling one or more tools.
     # > `required` means the model must call one or more tools.
+    NO_TOOL_CHOICE: ClassVar[str] = "none"
+    MODEL_CHOOSES_TOOL: ClassVar[str] = "auto"
     TOOL_CHOICE_REQUIRED: ClassVar[str] = "required"
+    # None means we won't provide a tool_choice to the LLM API
+    UNSPECIFIED_TOOL_CHOICE: ClassVar[None] = None
 
     async def call(  # noqa: C901, PLR0915
         self,
         messages: list[Message],
         callbacks: list[Callable] | None = None,
-        output_type: type[BaseModel] | None = None,
+        output_type: type[BaseModel] | JSONSchema | None = None,
         tools: list[Tool] | None = None,
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
         **chat_kwargs,
@@ -684,6 +701,9 @@ class MultipleCompletionLLMModel(BaseModel):
         Raises:
             ValueError: If the number of completions (n) is invalid.
         """
+        # add static configuration to kQwargs
+        chat_kwargs = self.config | chat_kwargs
+
         start_clock = asyncio.get_running_loop().time()
 
         # Deal with tools. Note OpenAI throws a 400 response if tools is empty:
@@ -705,7 +725,21 @@ class MultipleCompletionLLMModel(BaseModel):
                 )
 
         # deal with specifying output type
-        if output_type is not None:
+        if isinstance(output_type, Mapping):  # Use structured outputs
+            model_name: str = chat_kwargs.get("model", "")
+            if not litellm.supports_response_schema(model_name, None):
+                raise ValueError(f"Model {model_name} does not support JSON schema.")
+
+            chat_kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "strict": True,
+                    # SEE: https://platform.openai.com/docs/guides/structured-outputs#additionalproperties-false-must-always-be-set-in-objects
+                    "schema": dict(output_type) | {"additionalProperties": False},
+                    "name": output_type["title"],  # Required by OpenAI as of 12/3/2024
+                },
+            }
+        elif output_type is not None:  # Use JSON mode
             schema = json.dumps(output_type.model_json_schema(mode="serialization"))
             schema_msg = f"Respond following this JSON schema:\n\n{schema}"
             # Get the system prompt and its index, or the index to add it
@@ -724,8 +758,6 @@ class MultipleCompletionLLMModel(BaseModel):
             ]
             chat_kwargs["response_format"] = {"type": "json_object"}
 
-        # add static configuration to kwargs
-        chat_kwargs = self.config | chat_kwargs
         n = chat_kwargs.get("n", 1)  # number of completions
         if n < 1:
             raise ValueError("Number of completions (n) must be >= 1.")

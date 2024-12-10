@@ -19,6 +19,8 @@ from .llms import (
     LiteLLMModel,
     LLMModel,
     MultipleCompletionLLMModel,
+    sum_logprobs,
+    validate_json_completion,
 )
 from .types import (
     Chunk,
@@ -44,4 +46,6 @@ __all__ = [
     "SentenceTransformerEmbeddingModel",
     "SparseEmbeddingModel",
     "embedding_model_factory",
+    "sum_logprobs",
+    "validate_json_completion",
 ]
