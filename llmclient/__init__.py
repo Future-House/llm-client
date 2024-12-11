@@ -27,6 +27,9 @@ from .types import (
     Embeddable,
     LLMResult,
 )
+from .utils import (
+    configure_llm_logs,
+)
 
 __all__ = [
     "CHARACTERS_PER_TOKEN_ASSUMPTION",
@@ -45,6 +48,7 @@ __all__ = [
     "MultipleCompletionLLMModel",
     "SentenceTransformerEmbeddingModel",
     "SparseEmbeddingModel",
+    "configure_llm_logs",
     "embedding_model_factory",
     "sum_logprobs",
     "validate_json_completion",
