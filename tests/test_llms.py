@@ -22,6 +22,104 @@ from tests.conftest import VCR_DEFAULT_MATCH_ON
 
 
 class TestLiteLLMModel:
+
+    @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
+    @pytest.mark.parametrize(
+        "config",
+        [
+            pytest.param(
+                {
+                    "model_name": "gpt-4o-mini",
+                    "model_list": [
+                        {
+                            "model_name": "gpt-4o-mini",
+                            "litellm_params": {
+                                "model": "gpt-4o-mini",
+                                "temperature": 0,
+                                "max_tokens": 56,
+                            },
+                        }
+                    ],
+                },
+                id="chat-model",
+            ),
+            pytest.param(
+                {
+                    "model_name": "gpt-3.5-turbo-instruct",
+                    "model_list": [
+                        {
+                            "model_name": "gpt-3.5-turbo-instruct",
+                            "litellm_params": {
+                                "model": "gpt-3.5-turbo-instruct",
+                                "temperature": 0,
+                                "max_tokens": 56,
+                            },
+                        }
+                    ],
+                },
+                id="completion-model",
+            ),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_call(self, config: dict[str, Any]) -> None:
+        llm = LiteLLMModel(name=config["model_name"], config=config)
+        messages = [
+            Message(role="system", content="Respond with single words."),
+            Message(role="user", content="What is the meaning of the universe?"),
+        ]
+        results = await llm.call(messages)
+        assert isinstance(results.prompt, list)
+        assert isinstance(results.prompt[1], Message)
+        assert all(isinstance(msg, Message) for msg in results.prompt)
+        assert len(results.prompt) == 2
+        assert results.prompt[1].content
+        assert results.text
+
+    # @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
+    @pytest.mark.asyncio
+    async def test_call_w_figure(self) -> None:
+        llm = LiteLLMModel(name="gpt-4o")
+        image = np.zeros((32, 32, 3), dtype=np.uint8)
+        image[:] = [255, 0, 0]
+        messages = [
+            Message(
+                role="system", content="You are a detective who investigate colors"
+            ),
+            Message.create_message(
+                role="user",
+                text="What color is this square? Show me your chain of reasoning.",
+                image=image,
+            ),
+        ]  # TODO: It's not decoding the image. It's trying to guess the color from the encoded image string.
+        results = await llm.call(messages)
+        assert isinstance(results.prompt, list)
+        assert all(isinstance(msg, Message) for msg in results.prompt)
+        assert isinstance(results.prompt[1], Message)
+        assert len(results.prompt) == 2
+        assert results.prompt[1].content
+        assert "red" in results.text.lower()
+        assert results.seconds_to_last_token > 0
+        assert results.prompt_count > 0
+        assert results.completion_count > 0
+        assert results.cost > 0
+
+        # Also test with a callback
+        async def ac(x) -> None:
+            pass
+
+        results = await llm.call(messages, [ac])
+        assert isinstance(results.prompt, list)
+        assert all(isinstance(msg, Message) for msg in results.prompt)
+        assert isinstance(results.prompt[1], Message)
+        assert len(results.prompt) == 2
+        assert results.prompt[1].content
+        assert "red" in results.text.lower()
+        assert results.seconds_to_first_token > 0
+        assert results.prompt_count > 0
+        assert results.completion_count > 0
+        assert results.cost > 0
+
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.parametrize(
         "config",

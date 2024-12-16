@@ -190,6 +190,50 @@ class LLMModel(ABC, BaseModel):
     def count_tokens(self, text: str) -> int:
         return len(text) // 4  # gross approximation
 
+    async def call(
+        self,
+        messages: list[Message],
+        callbacks: list[Callable] | None = None,
+        name: str | None = None,
+        system_prompt: str | None = None,
+    ) -> LLMResult:
+        """Call the LLM model with the given messages and configuration.
+
+        Args:
+            messages: A list of messages to send to the language model.
+            callbacks: A list of callback functions to execute
+                after receiving the response.
+            name: Optional name for the result.
+            system_prompt: System prompt to use, or None/empty string to not use one.
+                This should be passed in the messages if using a chat model
+            **chat_kwargs: Additional keyword arguments to pass to the chat function.
+
+        Returns:
+            LLMResult object containing the result of the call.
+        """
+        if self.llm_type is None:
+            self.llm_type = self.infer_llm_type()
+
+        if self.llm_type == "chat":
+            return await self._run_chat(
+                messages=messages,
+                callbacks=callbacks,
+                name=name,
+            )
+
+        if self.llm_type == "completion":
+            # Build a static prompt from the messages ignoring roles
+            prompt = "\n".join(m.content for m in messages if m.content)
+            return await self._run_completion(
+                prompt=prompt,
+                data={},
+                callbacks=callbacks,
+                name=name,
+                system_prompt=system_prompt,
+            )
+
+        raise ValueError(f"Unknown llm_type {self.llm_type!r}.")
+
     async def run_prompt(
         self,
         prompt: str,
@@ -198,11 +242,23 @@ class LLMModel(ABC, BaseModel):
         name: str | None = None,
         system_prompt: str | None = default_system_prompt,
     ) -> LLMResult:
+        messages = None  # using prompt, not messages
         if self.llm_type is None:
             self.llm_type = self.infer_llm_type()
+
         if self.llm_type == "chat":
-            return await self._run_chat(prompt, data, callbacks, name, system_prompt)
+            human_message_prompt = {"role": "user", "content": prompt}
+            messages = [
+                Message(role=m["role"], content=m["content"].format(**data))
+                for m in (
+                    [{"role": "system", "content": system_prompt}, human_message_prompt]
+                    if system_prompt
+                    else [human_message_prompt]
+                )
+            ]
+            return await self._run_chat(messages, callbacks, name, system_prompt)
         if self.llm_type == "completion":
+
             return await self._run_completion(
                 prompt, data, callbacks, name, system_prompt
             )
@@ -210,8 +266,7 @@ class LLMModel(ABC, BaseModel):
 
     async def _run_chat(
         self,
-        prompt: str,
-        data: dict,
+        messages: list[Message],
         callbacks: list[Callable] | None = None,
         name: str | None = None,
         system_prompt: str | None = default_system_prompt,
@@ -219,8 +274,7 @@ class LLMModel(ABC, BaseModel):
         """Run a chat prompt.
 
         Args:
-            prompt: Prompt to use.
-            data: Keys for the input variables that will be formatted into prompt.
+            messages: List of messages to use.
             callbacks: Optional functions to call with each chunk of the completion.
             name: Optional name for the result.
             system_prompt: System prompt to use, or None/empty string to not use one.
@@ -228,15 +282,6 @@ class LLMModel(ABC, BaseModel):
         Returns:
             Result of the chat.
         """
-        human_message_prompt = {"role": "user", "content": prompt}
-        messages = [
-            Message(role=m["role"], content=m["content"].format(**data))
-            for m in (
-                [{"role": "system", "content": system_prompt}, human_message_prompt]
-                if system_prompt
-                else [human_message_prompt]
-            )
-        ]
         result = LLMResult(
             model=self.name,
             name=name,
@@ -549,9 +594,7 @@ class LiteLLMModel(LLMModel):
 
     @rate_limited
     async def achat(self, messages: list[Message]) -> Chunk:  # type: ignore[override]
-        prompts = [
-            {"role": m.role, "content": m.content} for m in messages if m.content
-        ]
+        prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
         response = await self.router.acompletion(self.name, prompts)
         return Chunk(
             text=cast(litellm.Choices, response.choices[0]).message.content,
@@ -563,9 +606,7 @@ class LiteLLMModel(LLMModel):
     async def achat_iter(  # type: ignore[override]
         self, messages: list[Message]
     ) -> AsyncIterable[Chunk]:
-        prompts = [
-            {"role": m.role, "content": m.content} for m in messages if m.content
-        ]
+        prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
         completion = await self.router.acompletion(
             self.name,
             prompts,
