@@ -274,8 +274,6 @@ class LLMModel(ABC, BaseModel):
         """Run a chat prompt.
 
         Args:
-            prompt: Prompt to use.
-            data: Keys for the input variables that will be formatted into prompt.
             messages: List of messages to use.
             callbacks: Optional functions to call with each chunk of the completion.
             name: Optional name for the result.
