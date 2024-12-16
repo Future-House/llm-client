@@ -81,7 +81,7 @@ class TestLiteLLMModel:
     async def test_call_w_figure(self) -> None:
         llm = LiteLLMModel(name="gpt-4o")
         image = np.zeros((32, 32, 3), dtype=np.uint8)
-        image[:] = [0, 255, 0]
+        image[:] = [255, 0, 0]
         messages = [
             Message(
                 role="system", content="You are a detective who investigate colors"
@@ -99,7 +99,7 @@ class TestLiteLLMModel:
         assert len(results.prompt) == 2
         assert results.prompt[1].content
         assert "red" in results.text.lower()
-        assert results.seconds_to_first_token > 0
+        assert results.seconds_to_last_token > 0
         assert results.prompt_count > 0
         assert results.completion_count > 0
         assert results.cost > 0
