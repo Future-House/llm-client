@@ -36,7 +36,9 @@ jobs:
         with:
           enable-cache: true
       - run: uv python pin ${{ matrix.python-version }}
-      - uses: hynek/build-and-inspect-python-package@v2
+      - name: Check build
+        if: matrix.python-version == '3.11'
+        uses: hynek/build-and-inspect-python-package@v2
       - run: uv sync --python-preference=only-managed
       - run: uv run refurb llmclient tests
       - run: uv run pylint llmclient
