@@ -47,6 +47,7 @@ from llmclient.constants import (
     EXTRA_TOKENS_FROM_USER_ROLE,
     IS_PYTHON_BELOW_312,
 )
+from llmclient.cost_tracker import TrackedStreamWrapper, track_costs, track_costs_iter
 from llmclient.exceptions import JSONSchemaValidationError
 from llmclient.prompts import default_system_prompt
 from llmclient.rate_limiter import GLOBAL_LIMITER
@@ -258,7 +259,6 @@ class LLMModel(ABC, BaseModel):
             ]
             return await self._run_chat(messages, callbacks, name, system_prompt)
         if self.llm_type == "completion":
-
             return await self._run_completion(
                 prompt, data, callbacks, name, system_prompt
             )
@@ -411,7 +411,6 @@ def rate_limited(
     async def wrapper(
         self: LLMModelOrChild, *args: Any, **kwargs: Any
     ) -> Chunk | AsyncIterator[Chunk] | AsyncIterator[LLMModelOrChild]:
-
         if not hasattr(self, "check_rate_limit"):
             raise NotImplementedError(
                 f"Model {self.name} must have a `check_rate_limit` method."
@@ -566,7 +565,9 @@ class LiteLLMModel(LLMModel):
 
     @rate_limited
     async def acomplete(self, prompt: str) -> Chunk:  # type: ignore[override]
-        response = await self.router.atext_completion(model=self.name, prompt=prompt)
+        response = await track_costs(self.router.atext_completion)(
+            model=self.name, prompt=prompt
+        )
         return Chunk(
             text=response.choices[0].text,
             prompt_tokens=response.usage.prompt_tokens,
@@ -577,7 +578,7 @@ class LiteLLMModel(LLMModel):
     async def acomplete_iter(  # type: ignore[override]
         self, prompt: str
     ) -> AsyncIterable[Chunk]:
-        completion = await self.router.atext_completion(
+        completion = await track_costs_iter(self.router.atext_completion)(
             model=self.name,
             prompt=prompt,
             stream=True,
@@ -595,7 +596,7 @@ class LiteLLMModel(LLMModel):
     @rate_limited
     async def achat(self, messages: list[Message]) -> Chunk:  # type: ignore[override]
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
-        response = await self.router.acompletion(self.name, prompts)
+        response = await track_costs(self.router.acompletion)(self.name, prompts)
         return Chunk(
             text=cast(litellm.Choices, response.choices[0]).message.content,
             prompt_tokens=response.usage.prompt_tokens,  # type: ignore[attr-defined]
@@ -607,7 +608,7 @@ class LiteLLMModel(LLMModel):
         self, messages: list[Message]
     ) -> AsyncIterable[Chunk]:
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
-        completion = await self.router.acompletion(
+        completion = await track_costs_iter(self.router.acompletion)(
             self.name,
             prompts,
             stream=True,
@@ -642,7 +643,7 @@ class LiteLLMModel(LLMModel):
     ) -> ToolRequestMessage:
         """Shim to aviary.core.ToolSelector that supports tool schemae."""
         tool_selector = ToolSelector(
-            model_name=self.name, acompletion=self.router.acompletion
+            model_name=self.name, acompletion=track_costs(self.router.acompletion)
         )
         return await tool_selector(*selection_args, **selection_kwargs)
 
@@ -688,22 +689,21 @@ class MultipleCompletionLLMModel(BaseModel):
     async def achat(
         self, messages: Iterable[Message], **kwargs
     ) -> litellm.ModelResponse:
-        return await litellm.acompletion(
+        return await track_costs(litellm.acompletion)(
             messages=[m.model_dump(by_alias=True) for m in messages],
             **(self.config | kwargs),
         )
 
-    async def achat_iter(self, messages: Iterable[Message], **kwargs) -> AsyncGenerator:
-        return cast(
-            AsyncGenerator,
-            await litellm.acompletion(
-                messages=[m.model_dump(by_alias=True) for m in messages],
-                stream=True,
-                stream_options={
-                    "include_usage": True,  # Included to get prompt token counts
-                },
-                **(self.config | kwargs),
-            ),
+    async def achat_iter(
+        self, messages: Iterable[Message], **kwargs
+    ) -> TrackedStreamWrapper:
+        return await track_costs_iter(litellm.acompletion)(
+            messages=[m.model_dump(by_alias=True) for m in messages],
+            stream=True,
+            stream_options={
+                "include_usage": True,  # Included to get prompt token counts
+            },
+            **(self.config | kwargs),
         )
 
     # SEE: https://platform.openai.com/docs/api-reference/chat/create#chat-create-tool_choice
@@ -816,7 +816,7 @@ class MultipleCompletionLLMModel(BaseModel):
         results: list[LLMResult] = []
 
         if callbacks is None:
-            completion: litellm.ModelResponse = await self.achat(prompt, **chat_kwargs)
+            completion = await self.achat(prompt, **chat_kwargs)
             if output_type is not None:
                 validate_json_completion(completion, output_type)
 

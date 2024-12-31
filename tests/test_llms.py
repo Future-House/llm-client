@@ -22,7 +22,6 @@ from tests.conftest import VCR_DEFAULT_MATCH_ON
 
 
 class TestLiteLLMModel:
-
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.parametrize(
         "config",
@@ -89,7 +88,7 @@ class TestLiteLLMModel:
             Message.create_message(
                 role="user",
                 text="What color is this square? Show me your chain of reasoning.",
-                image=image,
+                images=image,
             ),
         ]  # TODO: It's not decoding the image. It's trying to guess the color from the encoded image string.
         results = await llm.call(messages)
@@ -412,7 +411,7 @@ class TestMultipleCompletionLLMModel:
             messages=[
                 Message.create_message(
                     text="What color is this square? Respond only with the color name.",
-                    image=image,
+                    images=image,
                 )
             ],
         )

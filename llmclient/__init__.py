@@ -3,6 +3,7 @@ from .constants import (
     EXTRA_TOKENS_FROM_USER_ROLE,
     MODEL_COST_MAP,
 )
+from .cost_tracker import track_costs_ctx, track_costs_global
 from .embeddings import (
     EmbeddingModel,
     EmbeddingModes,
@@ -51,5 +52,7 @@ __all__ = [
     "configure_llm_logs",
     "embedding_model_factory",
     "sum_logprobs",
+    "track_costs_ctx",
+    "track_costs_global",
     "validate_json_completion",
 ]

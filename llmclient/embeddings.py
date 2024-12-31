@@ -10,6 +10,7 @@ import tiktoken
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from llmclient.constants import CHARACTERS_PER_TOKEN_ASSUMPTION, MODEL_COST_MAP
+from llmclient.cost_tracker import track_costs
 from llmclient.rate_limiter import GLOBAL_LIMITER
 from llmclient.utils import get_litellm_retrying_config
 
@@ -27,8 +28,7 @@ class EmbeddingModel(ABC, BaseModel):
     config: dict[str, Any] = Field(
         default_factory=dict,
         description=(
-            "Optional `rate_limit` key, value must be a RateLimitItem or RateLimitItem"
-            " string for parsing"
+            "Optional `rate_limit` key, value must be a RateLimitItem or RateLimitItem string for parsing"
         ),
     )
 
@@ -138,7 +138,6 @@ class LiteLLMEmbeddingModel(EmbeddingModel):
         N = len(texts)
         embeddings = []
         for i in range(0, N, batch_size):
-
             await self.check_rate_limit(
                 sum(
                     len(t) / CHARACTERS_PER_TOKEN_ASSUMPTION
@@ -146,7 +145,7 @@ class LiteLLMEmbeddingModel(EmbeddingModel):
                 )
             )
 
-            response = await litellm.aembedding(
+            response = await track_costs(litellm.aembedding)(
                 model=self.name,
                 input=texts[i : i + batch_size],
                 dimensions=self.ndim,
@@ -222,8 +221,7 @@ class SentenceTransformerEmbeddingModel(EmbeddingModel):
             from sentence_transformers import SentenceTransformer
         except ImportError as exc:
             raise ImportError(
-                "Please install fh-llm-client[local] to use"
-                " SentenceTransformerEmbeddingModel."
+                "Please install fh-llm-client[local] to use SentenceTransformerEmbeddingModel."
             ) from exc
 
         self._model = SentenceTransformer(self.name)
