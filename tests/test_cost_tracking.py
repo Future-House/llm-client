@@ -27,7 +27,7 @@ class TestLiteLLMEmbeddingCosts:
     async def test_embed_documents(self):
         stub_texts = ["test1", "test2"]
         with assert_costs_increased():
-            async with track_costs_ctx(enabled=True):
+            async with track_costs_ctx():
                 model = LiteLLMEmbeddingModel(name="text-embedding-3-small", ndim=8)
                 await model.embed_documents(stub_texts)
 
@@ -74,7 +74,7 @@ class TestLiteLLMModel:
     @pytest.mark.asyncio
     async def test_call(self, config: dict[str, Any]) -> None:
         with assert_costs_increased():
-            async with track_costs_ctx(enabled=True):
+            async with track_costs_ctx():
                 llm = LiteLLMModel(name=config["model_name"], config=config)
                 messages = [
                     Message(role="system", content="Respond with single words."),
@@ -89,7 +89,7 @@ class TestLiteLLMModel:
         async def ac(x) -> None:
             pass
 
-        async with track_costs_ctx(enabled=True):
+        async with track_costs_ctx():
             with assert_costs_increased():
                 llm = LiteLLMModel(name="gpt-4o")
                 image = np.zeros((32, 32, 3), dtype=np.uint8)
@@ -140,7 +140,7 @@ class TestLiteLLMModel:
     )
     @pytest.mark.asyncio
     async def test_run_prompt(self, config: dict[str, Any]) -> None:
-        async with track_costs_ctx(enabled=True):
+        async with track_costs_ctx():
             with assert_costs_increased():
                 llm = LiteLLMModel(name="gpt-4o-mini", config=config)
 
@@ -168,7 +168,7 @@ class TestMultipleCompletionLLMModel:
     )
     @pytest.mark.asyncio
     async def test_achat(self, model_name: str) -> None:
-        async with track_costs_ctx(enabled=True):
+        async with track_costs_ctx():
             with assert_costs_increased():
                 model = MultipleCompletionLLMModel(name=model_name)
                 await model.achat(
@@ -189,7 +189,7 @@ class TestMultipleCompletionLLMModel:
     @pytest.mark.asyncio
     @pytest.mark.vcr
     async def test_text_image_message(self, model_name: str) -> None:
-        async with track_costs_ctx(enabled=True):
+        async with track_costs_ctx():
             with assert_costs_increased():
                 model = MultipleCompletionLLMModel(name=model_name, config={"n": 2})
 
