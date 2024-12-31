@@ -15,7 +15,7 @@ REPORT_EVERY_USD = 1.0
 
 
 def set_reporting_frequency(frequency: float):
-    global REPORT_EVERY_USD  # noqa: PLW0603
+    global REPORT_EVERY_USD  # noqa: PLW0603  # pylint: disable=global-statement
     REPORT_EVERY_USD = frequency
 
 
