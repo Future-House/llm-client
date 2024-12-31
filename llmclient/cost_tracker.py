@@ -11,6 +11,12 @@ logger = logging.getLogger(__name__)
 
 
 TRACK_COSTS = contextvars.ContextVar[bool]("track_costs", default=False)
+REPORT_EVERY_USD = 1.0
+
+
+def set_reporting_frequency(frequency: float):
+    global REPORT_EVERY_USD  # noqa: PLW0603
+    REPORT_EVERY_USD = frequency
 
 
 def track_costs_global(enabled: bool = True):
@@ -30,12 +36,18 @@ async def track_costs_ctx(enabled: bool = True):
 class CostTracker:
     def __init__(self):
         self.lifetime_cost_usd = 0.0
+        self.last_report = 0.0
 
     def record(self, response: litellm.ModelResponse):
         self.lifetime_cost_usd += litellm.cost_calculator.completion_cost(
             completion_response=response
         )
-        logger.info(f"Cumulative llmclient cost: ${self.lifetime_cost_usd:.8f}")
+
+        if self.lifetime_cost_usd - self.last_report > REPORT_EVERY_USD:
+            logger.info(
+                f"Cumulative llmclient API call cost: ${self.lifetime_cost_usd:.8f}"
+            )
+            self.last_report = self.lifetime_cost_usd
 
 
 GLOBAL_COST_TRACKER = CostTracker()
