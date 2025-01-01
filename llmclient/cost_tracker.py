@@ -10,40 +10,23 @@ import litellm
 logger = logging.getLogger(__name__)
 
 
-TRACK_COSTS = contextvars.ContextVar[bool]("track_costs", default=False)
-REPORT_EVERY_USD = 1.0
-
-
-def set_reporting_frequency(frequency: float):
-    global REPORT_EVERY_USD  # noqa: PLW0603  # pylint: disable=global-statement
-    REPORT_EVERY_USD = frequency
-
-
-def track_costs_global(enabled: bool = True):
-    TRACK_COSTS.set(enabled)
-
-
-@asynccontextmanager
-async def track_costs_ctx(enabled: bool = True):
-    prev = TRACK_COSTS.get()
-    TRACK_COSTS.set(enabled)
-    try:
-        yield
-    finally:
-        TRACK_COSTS.set(prev)
-
-
 class CostTracker:
     def __init__(self):
         self.lifetime_cost_usd = 0.0
         self.last_report = 0.0
+        # A contextvar so that different coroutines don't affect each other's cost tracking
+        self.enabled = contextvars.ContextVar[bool]("track_costs", default=False)
+        # Not a contextvar because I can't imagine a scenario where you'd want more fine-grained control
+        self.report_every_usd = 1.0
 
-    def record(self, response: litellm.ModelResponse):
+    def record(
+        self, response: litellm.ModelResponse | litellm.types.utils.EmbeddingResponse
+    ) -> None:
         self.lifetime_cost_usd += litellm.cost_calculator.completion_cost(
             completion_response=response
         )
 
-        if self.lifetime_cost_usd - self.last_report > REPORT_EVERY_USD:
+        if self.lifetime_cost_usd - self.last_report > self.report_every_usd:
             logger.info(
                 f"Cumulative llmclient API call cost: ${self.lifetime_cost_usd:.8f}"
             )
@@ -53,16 +36,57 @@ class CostTracker:
 GLOBAL_COST_TRACKER = CostTracker()
 
 
-TReturn = TypeVar("TReturn", bound=Awaitable)
+def set_reporting_threshold(threshold_usd: float) -> None:
+    GLOBAL_COST_TRACKER.report_every_usd = threshold_usd
+
+
+def enable_cost_tracking(enabled: bool = True) -> None:
+    GLOBAL_COST_TRACKER.enabled.set(enabled)
+
+
+@asynccontextmanager
+async def cost_tracking_ctx(enabled: bool = True):
+    prev = GLOBAL_COST_TRACKER.enabled.get()
+    GLOBAL_COST_TRACKER.enabled.set(enabled)
+    try:
+        yield
+    finally:
+        GLOBAL_COST_TRACKER.enabled.set(prev)
+
+
+TReturn = TypeVar(
+    "TReturn",
+    bound=Awaitable[litellm.ModelResponse]
+    | Awaitable[litellm.types.utils.EmbeddingResponse],
+)
 TParams = ParamSpec("TParams")
 
 
 def track_costs(
     func: Callable[TParams, TReturn],
 ) -> Callable[TParams, TReturn]:
+    """Automatically track API costs of a coroutine call.
+
+    Note that the costs will only be recorded if `enable_cost_tracking()` is called,
+    or if in a `cost_tracking_ctx()` context.
+
+    Usage:
+    ```
+    @track_costs
+    async def api_call(...) -> litellm.ModelResponse:
+        ...
+    ```
+
+    Args:
+        func: A coroutine that returns a ModelResponse or EmbeddingResponse
+
+    Returns:
+        A wrapped coroutine with the same signature.
+    """
+
     async def wrapped_func(*args, **kwargs):
         response = await func(*args, **kwargs)
-        if TRACK_COSTS.get():
+        if GLOBAL_COST_TRACKER.enabled.get():
             GLOBAL_COST_TRACKER.record(response)
         return response
 
@@ -79,13 +103,14 @@ class TrackedStreamWrapper:
         async for response in resp:
             yield response
 
+
     # This is ok
     async for resp in await litellm.acompletion(stream=True):
-        print(resp
+        print(resp)
 
 
     # This is not, because we cannot await an AsyncGenerator
-    async for resp in await wrap(litellm.acompletion(stream=True)):
+    async for resp in await wrap(litellm.acompletion)(stream=True):
         print(resp)
     ```
 
@@ -104,20 +129,44 @@ class TrackedStreamWrapper:
 
     def __next__(self):
         response = next(self.stream)
-        if TRACK_COSTS.get():
+        if GLOBAL_COST_TRACKER.enabled.get():
             GLOBAL_COST_TRACKER.record(response)
         return response
 
     async def __anext__(self):
         response = await self.stream.__anext__()
-        if TRACK_COSTS.get():
+        if GLOBAL_COST_TRACKER.enabled.get():
             GLOBAL_COST_TRACKER.record(response)
         return response
 
 
 def track_costs_iter(
-    func: Callable[TParams, TReturn],
+    func: Callable[TParams, Awaitable[litellm.CustomStreamWrapper]],
 ) -> Callable[TParams, Awaitable[TrackedStreamWrapper]]:
+    """Automatically track API costs of a streaming coroutine.
+
+    The return type is changed to `TrackedStreamWrapper`, which can be iterated
+    through in the same way. The underlying litellm object is available at
+    `TrackedStreamWrapper.stream`.
+
+    Note that the costs will only be recorded if `enable_cost_tracking()` is called,
+    or if in a `cost_tracking_ctx()` context.
+
+    Usage:
+    ```
+    @track_costs_iter
+    async def streaming_api_call(...) -> litellm.CustomStreamWrapper:
+        ...
+    ```
+
+    Args:
+        func: A coroutine that returns CustomStreamWrapper.
+
+    Returns:
+        A wrapped coroutine with the same arguments but with a
+        return type of TrackedStreamWrapper.
+    """
+
     @wraps(func)
     async def wrapped_func(*args, **kwargs):
         return TrackedStreamWrapper(await func(*args, **kwargs))
