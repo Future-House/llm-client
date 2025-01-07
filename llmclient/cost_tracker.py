@@ -1,7 +1,7 @@
 import contextvars
 import logging
 from collections.abc import Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import contextmanager
 from functools import wraps
 from typing import ParamSpec, TypeVar
 
@@ -44,8 +44,8 @@ def enable_cost_tracking(enabled: bool = True) -> None:
     GLOBAL_COST_TRACKER.enabled.set(enabled)
 
 
-@asynccontextmanager
-async def cost_tracking_ctx(enabled: bool = True):
+@contextmanager
+def cost_tracking_ctx(enabled: bool = True):
     prev = GLOBAL_COST_TRACKER.enabled.get()
     GLOBAL_COST_TRACKER.enabled.set(enabled)
     try:

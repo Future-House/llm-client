@@ -28,7 +28,8 @@ class EmbeddingModel(ABC, BaseModel):
     config: dict[str, Any] = Field(
         default_factory=dict,
         description=(
-            "Optional `rate_limit` key, value must be a RateLimitItem or RateLimitItem string for parsing"
+            "Optional `rate_limit` key, value must be a RateLimitItem or RateLimitItem"
+            " string for parsing"
         ),
     )
 
@@ -221,7 +222,8 @@ class SentenceTransformerEmbeddingModel(EmbeddingModel):
             from sentence_transformers import SentenceTransformer
         except ImportError as exc:
             raise ImportError(
-                "Please install fh-llm-client[local] to use SentenceTransformerEmbeddingModel."
+                "Please install fh-llm-client[local] to use"
+                " SentenceTransformerEmbeddingModel."
             ) from exc
 
         self._model = SentenceTransformer(self.name)

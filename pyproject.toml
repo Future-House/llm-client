@@ -267,7 +267,7 @@ ignore = [
 
 [tool.ruff]
 # Line length to use when enforcing long-lines violations (like `E501`).
-line-length = 120
+line-length = 88
 # Enable application of unsafe fixes.
 unsafe-fixes = true
 
@@ -304,7 +304,6 @@ extend-select = [
     "FURB192",
     "PLR6201",
     "PLW0108",
-    "RUF022",
 ]
 external = [
     "FURB",  # refurb
@@ -317,7 +316,6 @@ ignore = [
     "ARG002",  # Thrown all the time when we are subclassing
     "ARG003",  # Thrown all the time when we are subclassing
     "ASYNC109",  # Buggy, SEE: https://github.com/astral-sh/ruff/issues/12353
-    "ASYNC2",  # It's ok to mix async and sync ops (like opening a file)
     "BLE001",  # Don't care to enforce blind exception catching
     "COM812",  # Trailing comma with black leads to wasting lines
     "D100",  # D100, D101, D102, D103, D104, D105, D106, D107: don't always need docstrings
@@ -352,6 +350,7 @@ ignore = [
     "PLR6104",  # Moving to __iadd__ risks llm-client graph manipulation
     "PLW2901",  # Allow modifying loop variables
     "PTH",  # Overly pedantic
+    "RUF027",  # Prompt templates may not be f-strings
     "S101",  # Don't care to prevent asserts
     "S105",  # Duplicates Yelp/detect-secrets in pre-commit
     "S311",  # Ok to use python random
@@ -383,7 +382,7 @@ mypy-init-return = true
     "F841",  # Tests can have unused locals
     "N802",  # Tests function names can match class names
     "PLR2004",  # Tests can have magic values
-    "S301",  # can test pickle
+    "S301",  # Tests can have pickle
 ]
 "docs/**.ipynb" = [
     "PLE1142",  # allow async
