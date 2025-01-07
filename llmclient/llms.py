@@ -13,6 +13,7 @@ from collections.abc import (
     Iterable,
     Mapping,
 )
+from enum import StrEnum
 from inspect import isasyncgenfunction, signature
 from typing import (
     Any,
@@ -65,6 +66,17 @@ if not IS_PYTHON_BELOW_312:
 # Yes, this is a hack, it mostly matches
 # https://github.com/python-jsonschema/referencing/blob/v0.35.1/referencing/jsonschema.py#L20-L21
 JSONSchema: TypeAlias = Mapping[str, Any]
+
+
+class CommonLLMNames(StrEnum):
+    """When you don't want to think about models, just use one from here."""
+
+    # Use these for model defaults
+    OPENAI_GENERAL = "gpt-4o-2024-11-20"  # Cheap, fast, and decent
+
+    # Use these in unit testing
+    OPENAI_TEST = "gpt-4o-mini-2024-07-18"  # Cheap and not OpenAI's cutting edge
+    ANTHROPIC_TEST = "claude-3-haiku-20240307"  # Cheap and not Anthropic's cutting edge
 
 
 def sum_logprobs(choice: litellm.utils.Choices) -> float | None:

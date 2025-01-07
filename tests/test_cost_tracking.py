@@ -8,10 +8,10 @@ from aviary.core import Message
 from llmclient import cost_tracking_ctx
 from llmclient.cost_tracker import GLOBAL_COST_TRACKER
 from llmclient.embeddings import LiteLLMEmbeddingModel
-from llmclient.llms import LiteLLMModel, MultipleCompletionLLMModel
+from llmclient.llms import CommonLLMNames, LiteLLMModel, MultipleCompletionLLMModel
 from llmclient.types import LLMResult
 
-from .conftest import VCR_DEFAULT_MATCH_ON, CILLMModelNames
+from .conftest import VCR_DEFAULT_MATCH_ON
 
 
 @contextmanager
@@ -164,7 +164,7 @@ class TestMultipleCompletionLLMModel:
         return await model.call(*args, **kwargs)
 
     @pytest.mark.parametrize(
-        "model_name", ["gpt-3.5-turbo", CILLMModelNames.ANTHROPIC.value]
+        "model_name", ["gpt-3.5-turbo", CommonLLMNames.ANTHROPIC_TEST.value]
     )
     @pytest.mark.asyncio
     async def test_achat(self, model_name: str) -> None:
@@ -185,7 +185,7 @@ class TestMultipleCompletionLLMModel:
                 ):
                     pass
 
-    @pytest.mark.parametrize("model_name", [CILLMModelNames.OPENAI.value])
+    @pytest.mark.parametrize("model_name", [CommonLLMNames.OPENAI_TEST.value])
     @pytest.mark.asyncio
     @pytest.mark.vcr
     async def test_text_image_message(self, model_name: str) -> None:

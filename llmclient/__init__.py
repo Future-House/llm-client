@@ -17,6 +17,7 @@ from .exceptions import (
     JSONSchemaValidationError,
 )
 from .llms import (
+    CommonLLMNames,
     LiteLLMModel,
     LLMModel,
     MultipleCompletionLLMModel,
@@ -38,6 +39,7 @@ __all__ = [
     "GLOBAL_COST_TRACKER",
     "MODEL_COST_MAP",
     "Chunk",
+    "CommonLLMNames",
     "Embeddable",
     "EmbeddingModel",
     "EmbeddingModes",
