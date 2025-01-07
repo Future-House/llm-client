@@ -72,7 +72,7 @@ class CommonLLMNames(StrEnum):
     """When you don't want to think about models, just use one from here."""
 
     # Use these for model defaults
-    OPENAI_GENERAL = "gpt-4o-2024-11-20"  # Cheap, fast, and decent
+    GENERAL_PURPOSE = "gpt-4o-2024-11-20"  # Cheap, fast, and decent
 
     # Use these in unit testing
     OPENAI_TEST = "gpt-4o-mini-2024-07-18"  # Cheap and not OpenAI's cutting edge
