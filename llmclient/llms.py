@@ -71,12 +71,18 @@ JSONSchema: TypeAlias = Mapping[str, Any]
 class CommonLLMNames(StrEnum):
     """When you don't want to think about models, just use one from here."""
 
-    # Use these for model defaults
-    GENERAL_PURPOSE = "gpt-4o-2024-11-20"  # Cheap, fast, and decent
+    # Use these to avoid thinking about exact versions
+    GPT_4O = "gpt-4o-2024-11-20"
+    CLAUDE_35_SONNET = "claude-3-5-sonnet-20241022"
+
+    # Use these when trying to think of a somewhat opinionated default
+    OPENAI_BASELINE = "gpt-4o-2024-11-20"  # Fast and decent
 
     # Use these in unit testing
-    OPENAI_TEST = "gpt-4o-mini-2024-07-18"  # Cheap and not OpenAI's cutting edge
-    ANTHROPIC_TEST = "claude-3-haiku-20240307"  # Cheap and not Anthropic's cutting edge
+    OPENAI_TEST = "gpt-4o-mini-2024-07-18"  # Cheap, fast, and not OpenAI's cutting edge
+    ANTHROPIC_TEST = (
+        "claude-3-haiku-20240307"  # Cheap, fast, and not Anthropic's cutting edge
+    )
 
 
 def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
