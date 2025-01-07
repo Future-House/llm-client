@@ -162,7 +162,7 @@ class SparseEmbeddingModel(EmbeddingModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str = "sparse"
-    ndim: int = 256
+    ndim: int = 256  # type: ignore[mutable-override]
     enc: tiktoken.Encoding = Field(
         default_factory=lambda: tiktoken.get_encoding("cl100k_base")
     )
