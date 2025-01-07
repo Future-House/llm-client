@@ -537,7 +537,7 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.0.9.dev1+g7414091"
+version = "0.0.9.dev7+g3481f15"
 source = { editable = "." }
 dependencies = [
     { name = "coredis" },
@@ -651,7 +651,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 codeflash = [
-    { name = "codeflash", specifier = ">=0.7" },
+    { name = "codeflash", specifier = ">=0.8" },
     { name = "fh-llm-client", extras = ["dev"] },
 ]
 dev = [{ name = "fh-llm-client", extras = ["dev"] }]
