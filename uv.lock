@@ -537,7 +537,7 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.0.9.dev7+g3481f15"
+version = "0.0.9.dev7+g43e2393"
 source = { editable = "." }
 dependencies = [
     { name = "coredis" },
@@ -559,7 +559,6 @@ dev = [
     { name = "pylint-pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
     { name = "pytest-recording" },
     { name = "pytest-rerunfailures" },
     { name = "pytest-subtests" },
@@ -586,7 +585,6 @@ codeflash = [
     { name = "pylint-pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
     { name = "pytest-recording" },
     { name = "pytest-rerunfailures" },
     { name = "pytest-subtests" },
@@ -606,7 +604,6 @@ dev = [
     { name = "pylint-pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
     { name = "pytest-recording" },
     { name = "pytest-rerunfailures" },
     { name = "pytest-subtests" },
@@ -635,7 +632,6 @@ requires-dist = [
     { name = "pylint-pydantic", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
-    { name = "pytest-mock", marker = "extra == 'dev'" },
     { name = "pytest-recording", marker = "extra == 'dev'" },
     { name = "pytest-rerunfailures", marker = "extra == 'dev'" },
     { name = "pytest-subtests", marker = "extra == 'dev'" },
@@ -2000,18 +1996,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/4b/04/0477a4bdd176ad678d148c075f43620b3f7a060ff61c7da48500b1fa8a75/pytest_asyncio-0.25.1.tar.gz", hash = "sha256:79be8a72384b0c917677e00daa711e07db15259f4d23203c59012bcd989d4aee", size = 53760 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/fb/efc7226b384befd98d0e00d8c4390ad57f33c8fde00094b85c5e07897def/pytest_asyncio-0.25.1-py3-none-any.whl", hash = "sha256:c84878849ec63ff2ca509423616e071ef9cd8cc93c053aa33b5b8fb70a990671", size = 19357 },
-]
-
-[[package]]
-name = "pytest-mock"
-version = "3.14.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pytest" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/c6/90/a955c3ab35ccd41ad4de556596fa86685bf4fc5ffcc62d22d856cfd4e29a/pytest-mock-3.14.0.tar.gz", hash = "sha256:2719255a1efeceadbc056d6bf3df3d1c5015530fb40cf347c0f9afac88410bd0", size = 32814 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/3b/b26f90f74e2986a82df6e7ac7e319b8ea7ccece1caec9f8ab6104dc70603/pytest_mock-3.14.0-py3-none-any.whl", hash = "sha256:0b72c38033392a5f4621342fe11e9219ac11ec9d375f8e2a0c164539e0d70f6f", size = 9863 },
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import litellm
 import pytest
@@ -23,24 +23,24 @@ class TestLiteLLMEmbeddingModel:
         return LiteLLMEmbeddingModel()
 
     @pytest.mark.asyncio
-    async def test_embed_documents(self, embedding_model, mocker):
+    async def test_embed_documents(self, embedding_model):
         texts = ["short text", "another short text"]
-        mocker.patch(
-            "llmclient.embeddings.LiteLLMEmbeddingModel._truncate_if_large",
-            return_value=texts,
+        mock_response = Mock(
+            data=[{"embedding": [0.1, 0.2, 0.3]}, {"embedding": [0.4, 0.5, 0.6]}]
         )
-        mocker.patch(
-            "llmclient.embeddings.LiteLLMEmbeddingModel.check_rate_limit",
-            return_value=None,
-        )
-        mock_response = mocker.Mock()
-        mock_response.data = [
-            {"embedding": [0.1, 0.2, 0.3]},
-            {"embedding": [0.4, 0.5, 0.6]},
-        ]
-        mocker.patch("litellm.aembedding", return_value=mock_response)
 
-        embeddings = await embedding_model.embed_documents(texts)
+        with (
+            patch(
+                "llmclient.embeddings.LiteLLMEmbeddingModel._truncate_if_large",
+                return_value=texts,
+            ),
+            patch(
+                "llmclient.embeddings.LiteLLMEmbeddingModel.check_rate_limit",
+                return_value=None,
+            ),
+            patch("litellm.aembedding", side_effect=[mock_response]),
+        ):
+            embeddings = await embedding_model.embed_documents(texts)
         assert embeddings == [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
 
     @pytest.mark.parametrize(
@@ -74,29 +74,32 @@ class TestLiteLLMEmbeddingModel:
         truncated_texts = embedding_model._truncate_if_large(texts)
         assert truncated_texts == texts
 
-    def test_truncate_if_large_with_truncation(self, embedding_model, mocker):
+    def test_truncate_if_large_with_truncation(self, embedding_model):
         texts = ["a" * 10000, "b" * 10000]
-        mocker.patch.dict(
-            MODEL_COST_MAP, {embedding_model.name: {"max_input_tokens": 100}}
-        )
-        mocker.patch(
-            "tiktoken.encoding_for_model",
-            return_value=mocker.Mock(
-                encode_ordinary_batch=lambda texts: [[1] * 1000 for _ in texts],
-                decode=lambda text: "truncated text",  # noqa: ARG005
+
+        mock_encoder = Mock()
+        mock_encoder.encode_ordinary_batch.return_value = [[1] * 1000 for _ in texts]
+        mock_encoder.decode.return_value = "truncated text"
+
+        with (
+            patch.dict(
+                MODEL_COST_MAP, {embedding_model.name: {"max_input_tokens": 100}}
             ),
-        )
-        truncated_texts = embedding_model._truncate_if_large(texts)
+            patch("tiktoken.encoding_for_model", return_value=mock_encoder),
+        ):
+            truncated_texts = embedding_model._truncate_if_large(texts)
         assert truncated_texts == ["truncated text", "truncated text"]
 
-    def test_truncate_if_large_key_error(self, embedding_model, mocker):
+    def test_truncate_if_large_key_error(self, embedding_model):
         texts = ["a" * 10000, "b" * 10000]
-        mocker.patch.dict(
-            MODEL_COST_MAP, {embedding_model.name: {"max_input_tokens": 100}}
-        )
-        mocker.patch("tiktoken.encoding_for_model", side_effect=KeyError)
-        truncated_texts = embedding_model._truncate_if_large(texts)
-        assert truncated_texts == ["a" * 300, "b" * 300]
+        with (
+            patch.dict(
+                MODEL_COST_MAP, {embedding_model.name: {"max_input_tokens": 100}}
+            ),
+            patch("tiktoken.encoding_for_model", side_effect=KeyError),
+        ):
+            truncated_texts = embedding_model._truncate_if_large(texts)
+            assert truncated_texts == ["a" * 300, "b" * 300]
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
