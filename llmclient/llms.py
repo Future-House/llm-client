@@ -13,6 +13,7 @@ from collections.abc import (
     Iterable,
     Mapping,
 )
+from enum import StrEnum
 from inspect import isasyncgenfunction, signature
 from typing import (
     Any,
@@ -65,6 +66,23 @@ if not IS_PYTHON_BELOW_312:
 # Yes, this is a hack, it mostly matches
 # https://github.com/python-jsonschema/referencing/blob/v0.35.1/referencing/jsonschema.py#L20-L21
 JSONSchema: TypeAlias = Mapping[str, Any]
+
+
+class CommonLLMNames(StrEnum):
+    """When you don't want to think about models, just use one from here."""
+
+    # Use these to avoid thinking about exact versions
+    GPT_4O = "gpt-4o-2024-11-20"
+    CLAUDE_35_SONNET = "claude-3-5-sonnet-20241022"
+
+    # Use these when trying to think of a somewhat opinionated default
+    OPENAI_BASELINE = "gpt-4o-2024-11-20"  # Fast and decent
+
+    # Use these in unit testing
+    OPENAI_TEST = "gpt-4o-mini-2024-07-18"  # Cheap, fast, and not OpenAI's cutting edge
+    ANTHROPIC_TEST = (
+        "claude-3-haiku-20240307"  # Cheap, fast, and not Anthropic's cutting edge
+    )
 
 
 def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
@@ -675,10 +693,9 @@ class MultipleCompletionLLMModel(BaseModel):
 
     @model_validator(mode="after")
     def set_model_name(self) -> Self:
-        if (
-            self.config.get("model") in {"gpt-3.5-turbo", None}
-            and self.name != "unknown"
-        ) or (self.name != "unknown" and "model" not in self.config):
+        if (self.config.get("model") is None and self.name != "unknown") or (
+            self.name != "unknown" and "model" not in self.config
+        ):
             self.config["model"] = self.name
         elif "model" in self.config and self.name == "unknown":
             self.name = self.config["model"]

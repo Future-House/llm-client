@@ -1,6 +1,5 @@
 import pathlib
 import pickle
-from enum import StrEnum
 from typing import Any, ClassVar
 from unittest.mock import Mock, patch
 
@@ -13,6 +12,7 @@ from pydantic import BaseModel
 from llmclient.exceptions import JSONSchemaValidationError
 from llmclient.llms import (
     Chunk,
+    CommonLLMNames,
     LiteLLMModel,
     MultipleCompletionLLMModel,
     validate_json_completion,
@@ -259,13 +259,6 @@ class TestLiteLLMModel:
         assert llm.router.deployment_names == rehydrated_llm.router.deployment_names
 
 
-class CILLMModelNames(StrEnum):
-    """Models to use for generic CI testing."""
-
-    ANTHROPIC = "claude-3-haiku-20240307"  # Cheap and not Anthropic's cutting edge
-    OPENAI = "gpt-4o-mini-2024-07-18"  # Cheap and not OpenAI's cutting edge
-
-
 class DummyOutputSchema(BaseModel):
     name: str
     age: int
@@ -282,7 +275,7 @@ class TestMultipleCompletionLLMModel:
         return await model.call(*args, **kwargs)
 
     @pytest.mark.parametrize(
-        "model_name", ["gpt-3.5-turbo", CILLMModelNames.ANTHROPIC.value]
+        "model_name", ["gpt-3.5-turbo", CommonLLMNames.ANTHROPIC_TEST.value]
     )
     @pytest.mark.asyncio
     async def test_achat(self, model_name: str) -> None:
@@ -324,7 +317,7 @@ class TestMultipleCompletionLLMModel:
             assert result.logprob is None or result.logprob <= 0
 
     @pytest.mark.parametrize(
-        "model_name", [CILLMModelNames.ANTHROPIC.value, "gpt-3.5-turbo"]
+        "model_name", [CommonLLMNames.ANTHROPIC_TEST.value, "gpt-3.5-turbo"]
     )
     @pytest.mark.asyncio
     async def test_streaming(self, model_name: str) -> None:
@@ -396,7 +389,7 @@ class TestMultipleCompletionLLMModel:
             assert result.messages[0].content
             DummyOutputSchema.model_validate_json(result.messages[0].content)
 
-    @pytest.mark.parametrize("model_name", [CILLMModelNames.OPENAI.value])
+    @pytest.mark.parametrize("model_name", [CommonLLMNames.OPENAI_TEST.value])
     @pytest.mark.asyncio
     @pytest.mark.vcr
     async def test_text_image_message(self, model_name: str) -> None:
@@ -426,7 +419,7 @@ class TestMultipleCompletionLLMModel:
             assert "red" in result.messages[-1].content.lower()
 
     @pytest.mark.parametrize(
-        "model_name", [CILLMModelNames.ANTHROPIC.value, "gpt-3.5-turbo"]
+        "model_name", [CommonLLMNames.ANTHROPIC_TEST.value, "gpt-3.5-turbo"]
     )
     @pytest.mark.asyncio
     @pytest.mark.vcr
@@ -456,8 +449,8 @@ class TestMultipleCompletionLLMModel:
     @pytest.mark.parametrize(
         "model_name",
         [
-            pytest.param(CILLMModelNames.ANTHROPIC.value, id="anthropic"),
-            pytest.param(CILLMModelNames.OPENAI.value, id="openai"),
+            pytest.param(CommonLLMNames.ANTHROPIC_TEST.value, id="anthropic"),
+            pytest.param(CommonLLMNames.OPENAI_TEST.value, id="openai"),
         ],
     )
     async def test_multiple_completion(self, model_name: str, request) -> None:
