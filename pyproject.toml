@@ -4,7 +4,7 @@ requires = ["setuptools>=64", "setuptools_scm>=8"]
 
 [dependency-groups]
 codeflash = [
-    "codeflash>=0.7",  # Pin to keep recent
+    "codeflash>=0.8",  # Pin for --verify-setup checking formatter-cmds
     "fh-llm-client[dev]",
 ]
 dev = ["fh-llm-client[dev]"]
@@ -48,7 +48,6 @@ dev = [
     "pre-commit>=3.4",  # Pin to keep recent
     "pylint-pydantic",
     "pytest-asyncio",
-    "pytest-mock",
     "pytest-recording",
     "pytest-rerunfailures",
     "pytest-subtests",
@@ -74,7 +73,7 @@ preview = true
 [tool.codeflash]
 disable-imports-sorting = true
 disable-telemetry = true
-formatter-cmds = ["ruff check --exit-zero --fix $file", "ruff format $file"]
+formatter-cmds = ["uv tool run ruff check --exit-zero --fix $file", "uv tool run ruff format $file"]
 module-root = "llmclient"
 test-framework = "pytest"
 tests-root = "tests"
@@ -92,6 +91,7 @@ check_untyped_defs = true
 # override disabled error codes from the disable_error_code option.
 enable_error_code = [
     "ignore-without-code",
+    "mutable-override",
     "redundant-cast",
     "redundant-expr",
     "redundant-self",
@@ -233,6 +233,9 @@ score = false
 min-similarity-lines = 12
 
 [tool.pytest.ini_options]
+# Add the specified OPTS to the set of command line arguments as if they had been
+# specified by the user.
+addopts = "--doctest-modules"
 # Sets a list of filters and actions that should be taken for matched warnings.
 # By default all warnings emitted during the test session will be displayed in
 # a summary at the end of the test session.
@@ -240,32 +243,31 @@ filterwarnings = [
     "ignore:Support for class-based `config` is deprecated, use ConfigDict instead",  # SEE: https://github.com/BerriAI/litellm/issues/5648
     "ignore:The `dict` method is deprecated; use `model_dump` instead",  # SEE: https://github.com/BerriAI/litellm/issues/5987
     "ignore:Use 'content=<...>' to upload raw bytes/text content:DeprecationWarning",  # SEE: https://github.com/BerriAI/litellm/issues/5986
+    'ignore:Valid config keys have changed in V2:UserWarning',  # SEE: https://github.com/BerriAI/litellm/issues/7560
     'ignore:open_text is deprecated. Use files\(\) instead:DeprecationWarning',  # SEE: https://github.com/BerriAI/litellm/issues/5647
-    'ignore:pkg_resources is deprecated as an API.:DeprecationWarning:pybtex',  # SEE: https://bitbucket.org/pybtex-devs/pybtex/issues/169/replace-pkg_resources-with
 ]
 # List of directories that should be searched for tests when no specific directories,
 # files or test ids are given in the command line when executing pytest from the rootdir
 # directory. File system paths may use shell-style wildcards, including the recursive **
 # pattern.
-testpaths = ["tests"]
+testpaths = ["llmclient", "tests"]
 
 [tool.refurb]
 enable_all = true
 ignore = [
-    "FURB101",  # FURB101, FURB103, FURB141, FURB144, FURB146, FURB147, FURB150, FURB155: no need for pathlib
-    "FURB103",
-    "FURB118",  # We often use inspect.signature in FxnOp. In 3.11, this doesn't work on operator.itemgetter.
-    "FURB141",
-    "FURB144",
-    "FURB146",
-    "FURB147",
-    "FURB150",
-    "FURB155",
+    "FURB101",  # Rely on ruff FURB101 for this
+    "FURB103",  # Rely on ruff FURB103 for this
+    "FURB141",  # Rely on ruff PTH110 for this
+    "FURB144",  # Rely on ruff PTH107 for this
+    "FURB146",  # Rely on ruff PTH113 for this
+    "FURB147",  # Rely on ruff PTH118 for this
+    "FURB150",  # Rely on ruff PTH102 for this
+    "FURB155",  # Rely on ruff PTH202 for this
 ]
 
 [tool.ruff]
 # Line length to use when enforcing long-lines violations (like `E501`).
-line-length = 120
+line-length = 88
 # Enable application of unsafe fixes.
 unsafe-fixes = true
 
@@ -302,7 +304,6 @@ extend-select = [
     "FURB192",
     "PLR6201",
     "PLW0108",
-    "RUF022",
 ]
 external = [
     "FURB",  # refurb
@@ -315,7 +316,6 @@ ignore = [
     "ARG002",  # Thrown all the time when we are subclassing
     "ARG003",  # Thrown all the time when we are subclassing
     "ASYNC109",  # Buggy, SEE: https://github.com/astral-sh/ruff/issues/12353
-    "ASYNC2",  # It's ok to mix async and sync ops (like opening a file)
     "BLE001",  # Don't care to enforce blind exception catching
     "COM812",  # Trailing comma with black leads to wasting lines
     "D100",  # D100, D101, D102, D103, D104, D105, D106, D107: don't always need docstrings
@@ -350,6 +350,7 @@ ignore = [
     "PLR6104",  # Moving to __iadd__ risks llm-client graph manipulation
     "PLW2901",  # Allow modifying loop variables
     "PTH",  # Overly pedantic
+    "RUF027",  # Prompt templates may not be f-strings
     "S101",  # Don't care to prevent asserts
     "S105",  # Duplicates Yelp/detect-secrets in pre-commit
     "S311",  # Ok to use python random
@@ -381,7 +382,7 @@ mypy-init-return = true
     "F841",  # Tests can have unused locals
     "N802",  # Tests function names can match class names
     "PLR2004",  # Tests can have magic values
-    "S301",  # can test pickle
+    "S301",  # Tests can have pickle
 ]
 "docs/**.ipynb" = [
     "PLE1142",  # allow async

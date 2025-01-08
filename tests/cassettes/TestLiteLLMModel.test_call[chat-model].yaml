@@ -3,7 +3,7 @@ interactions:
       body:
         '{"messages": [{"role": "system", "content": "Respond with single words."},
         {"role": "user", "content": "What is the meaning of the universe?"}], "model":
-        "gpt-4o-mini", "max_tokens": 56, "stream": false, "temperature": 0}'
+        "gpt-4o-mini", "max_tokens": 56, "temperature": 0}'
       headers:
         accept:
           - application/json
@@ -12,13 +12,13 @@ interactions:
         connection:
           - keep-alive
         content-length:
-          - "221"
+          - "204"
         content-type:
           - application/json
         host:
           - api.openai.com
         user-agent:
-          - AsyncOpenAI/Python 1.57.4
+          - AsyncOpenAI/Python 1.59.4
         x-stainless-arch:
           - arm64
         x-stainless-async:
@@ -28,7 +28,7 @@ interactions:
         x-stainless-os:
           - MacOS
         x-stainless-package-version:
-          - 1.57.4
+          - 1.59.4
         x-stainless-raw-response:
           - "true"
         x-stainless-retry-count:
@@ -40,23 +40,20 @@ interactions:
       method: POST
       uri: https://api.openai.com/v1/chat/completions
     response:
-      content:
-        "{\n  \"id\": \"chatcmpl-Ae4O1E1Po0uUlktOTKXr90N30R16G\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1734113345,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Existence.\",\n        \"refusal\": null\n
-        \     },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n
-        \ ],\n  \"usage\": {\n    \"prompt_tokens\": 24,\n    \"completion_tokens\":
-        3,\n    \"total_tokens\": 27,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\": {\n
-        \     \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"system_fingerprint\":
-        \"fp_39a40c96a0\"\n}\n"
+      body:
+        string: !!binary |
+          H4sIAAAAAAAAAwAAAP//jJLBa8IwFMbv/StCzlbaWqf05oYMNthhjO0wRonJs2ZLk5A8xSn+7yNV
+          28oc7JLD+73vy/deso8IoVLQglC+Yshrq+KZvn3D9MnvHubzu8fRPXvOeTbbbF5l/rKjg6Awi0/g
+          eFYNuamtApRGHzF3wBCCazoZ3WTT8WQ8bkBtBKggqyzGuYlrqWWcJVkeJ5M4nZ7UKyM5eFqQ94gQ
+          QvbNGXJqAVtakGRwrtTgPauAFm0TIdQZFSqUeS89Mo100EFuNIJuos+30iNoDsN+g4Pl2rMQUq+V
+          OtUP7Y3KVNaZhT/xtr6UWvpV6YB5o4O7R2NpQw8RIR/NZOuLsNQ6U1ss0XyBDoZZfrSj3T47eGZo
+          kKmeZjq4YlYKQCaV7y2GcsZXIDplt0W2FtL0QNQb+XeWa97HsaWu/mPfAc7BIojSOhCSX87btTkI
+          n+2vtnbFTWDqvz1CXS6lrsBZJ49PvbSlSDIxHqWLfEKjQ/QDAAD//wMAT7eegvgCAAA=
       headers:
         CF-Cache-Status:
           - DYNAMIC
         CF-RAY:
-          - 8f17e73aedc3d039-SJC
+          - 8fe714941a472364-SJC
         Connection:
           - keep-alive
         Content-Encoding:
@@ -64,14 +61,14 @@ interactions:
         Content-Type:
           - application/json
         Date:
-          - Fri, 13 Dec 2024 18:09:06 GMT
+          - Tue, 07 Jan 2025 21:35:55 GMT
         Server:
           - cloudflare
         Set-Cookie:
-          - __cf_bm=mHzeEeiCRz94QKbEncD9UxrHb51IpyccWvWZf5EXSL0-1734113346-1.0.1.1-Y4ht.EeUJikM3agNNLomMJPvgHsfKv1nPr.DD.9j_KxZzLrnbhRbYHtUvgaQ5VN5ZpkiH0luLPElRgA7WUOF0g;
-            path=/; expires=Fri, 13-Dec-24 18:39:06 GMT; domain=.api.openai.com; HttpOnly;
+          - __cf_bm=in5InvYrWzPScZ.EajKBtuYISggatwhCkvrkmhYrTV8-1736285755-1.0.1.1-RHiXequvpmG_av_gXaLu3UYuYjAN2aSn6FzECtHu0CkCc2KCLaEQ6HZML0pgfalmCnzCpq0ss9veps6cO.H2AA;
+            path=/; expires=Tue, 07-Jan-25 22:05:55 GMT; domain=.api.openai.com; HttpOnly;
             Secure; SameSite=None
-          - _cfuvid=PYzolqj0HFgeIi.TNX_d51M8sLhj2iytmu3v4j1_DWE-1734113346042-0.0.1.1-604800000;
+          - _cfuvid=F7oUQayy6rrqOfsxaBQVjRTQPRQKiVHAtwkqfiwjcRw-1736285755881-0.0.1.1-604800000;
             path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
         Transfer-Encoding:
           - chunked
@@ -84,7 +81,7 @@ interactions:
         openai-organization:
           - future-house-xr4tdh
         openai-processing-ms:
-          - "166"
+          - "223"
         openai-version:
           - "2020-10-01"
         strict-transport-security:
@@ -102,7 +99,8 @@ interactions:
         x-ratelimit-reset-tokens:
           - 0s
         x-request-id:
-          - req_7e35c452417b6c03f990bfc89639ac21
-      http_version: HTTP/1.1
-      status_code: 200
+          - req_3cb1b75dc951163fbb8c3658c49abe3c
+      status:
+        code: 200
+        message: OK
 version: 1

@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import litellm
 import pytest
@@ -23,24 +23,24 @@ class TestLiteLLMEmbeddingModel:
         return LiteLLMEmbeddingModel()
 
     @pytest.mark.asyncio
-    async def test_embed_documents(self, embedding_model, mocker):
+    async def test_embed_documents(self, embedding_model):
         texts = ["short text", "another short text"]
-        mocker.patch(
-            "llmclient.embeddings.LiteLLMEmbeddingModel._truncate_if_large",
-            return_value=texts,
+        mock_response = Mock(
+            data=[{"embedding": [0.1, 0.2, 0.3]}, {"embedding": [0.4, 0.5, 0.6]}]
         )
-        mocker.patch(
-            "llmclient.embeddings.LiteLLMEmbeddingModel.check_rate_limit",
-            return_value=None,
-        )
-        mock_response = mocker.Mock()
-        mock_response.data = [
-            {"embedding": [0.1, 0.2, 0.3]},
-            {"embedding": [0.4, 0.5, 0.6]},
-        ]
-        mocker.patch("litellm.aembedding", return_value=mock_response)
 
-        embeddings = await embedding_model.embed_documents(texts)
+        with (
+            patch(
+                "llmclient.embeddings.LiteLLMEmbeddingModel._truncate_if_large",
+                return_value=texts,
+            ),
+            patch(
+                "llmclient.embeddings.LiteLLMEmbeddingModel.check_rate_limit",
+                return_value=None,
+            ),
+            patch("litellm.aembedding", side_effect=[mock_response]),
+        ):
+            embeddings = await embedding_model.embed_documents(texts)
         assert embeddings == [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
 
     @pytest.mark.parametrize(
@@ -74,29 +74,32 @@ class TestLiteLLMEmbeddingModel:
         truncated_texts = embedding_model._truncate_if_large(texts)
         assert truncated_texts == texts
 
-    def test_truncate_if_large_with_truncation(self, embedding_model, mocker):
+    def test_truncate_if_large_with_truncation(self, embedding_model):
         texts = ["a" * 10000, "b" * 10000]
-        mocker.patch.dict(
-            MODEL_COST_MAP, {embedding_model.name: {"max_input_tokens": 100}}
-        )
-        mocker.patch(
-            "tiktoken.encoding_for_model",
-            return_value=mocker.Mock(
-                encode_ordinary_batch=lambda texts: [[1] * 1000 for _ in texts],
-                decode=lambda text: "truncated text",  # noqa: ARG005
+
+        mock_encoder = Mock()
+        mock_encoder.encode_ordinary_batch.return_value = [[1] * 1000 for _ in texts]
+        mock_encoder.decode.return_value = "truncated text"
+
+        with (
+            patch.dict(
+                MODEL_COST_MAP, {embedding_model.name: {"max_input_tokens": 100}}
             ),
-        )
-        truncated_texts = embedding_model._truncate_if_large(texts)
+            patch("tiktoken.encoding_for_model", return_value=mock_encoder),
+        ):
+            truncated_texts = embedding_model._truncate_if_large(texts)
         assert truncated_texts == ["truncated text", "truncated text"]
 
-    def test_truncate_if_large_key_error(self, embedding_model, mocker):
+    def test_truncate_if_large_key_error(self, embedding_model):
         texts = ["a" * 10000, "b" * 10000]
-        mocker.patch.dict(
-            MODEL_COST_MAP, {embedding_model.name: {"max_input_tokens": 100}}
-        )
-        mocker.patch("tiktoken.encoding_for_model", side_effect=KeyError)
-        truncated_texts = embedding_model._truncate_if_large(texts)
-        assert truncated_texts == ["a" * 300, "b" * 300]
+        with (
+            patch.dict(
+                MODEL_COST_MAP, {embedding_model.name: {"max_input_tokens": 100}}
+            ),
+            patch("tiktoken.encoding_for_model", side_effect=KeyError),
+        ):
+            truncated_texts = embedding_model._truncate_if_large(texts)
+            assert truncated_texts == ["a" * 300, "b" * 300]
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -174,8 +177,7 @@ async def test_hybrid_embedding_model() -> None:
     assert result == [[1.0, 3.0], [2.0, 4.0]]
 
 
-@pytest.mark.asyncio
-async def test_class_constructor() -> None:
+def test_class_constructor() -> None:
     original_name = "hybrid-text-embedding-3-small"
     model = EmbeddingModel.from_name(original_name)
     assert isinstance(model, HybridEmbeddingModel)
@@ -236,19 +238,17 @@ async def test_embedding_model_factory_hybrid_with_sentence_transformer() -> Non
     ), "Embeddings do not match expected combined length"
 
 
-@pytest.mark.asyncio
-async def test_embedding_model_factory_invalid_st_prefix() -> None:
+def test_embedding_model_factory_invalid_st_prefix() -> None:
     """Test that the factory raises a ValueError when 'st-' prefix is provided without a model name."""
     embedding = "st-"
     with pytest.raises(
         ValueError,
-        match="SentenceTransformer model name must be specified after 'st-'.",
+        match=r"SentenceTransformer model name must be specified after 'st-'.",
     ):
         embedding_model_factory(embedding)
 
 
-@pytest.mark.asyncio
-async def test_embedding_model_factory_unknown_prefix() -> None:
+def test_embedding_model_factory_unknown_prefix() -> None:
     """Test that the factory defaults to LiteLLMEmbeddingModel when an unknown prefix is provided."""
     embedding = "unknown-prefix-model"
     model = embedding_model_factory(embedding)
@@ -258,8 +258,7 @@ async def test_embedding_model_factory_unknown_prefix() -> None:
     assert model.name == "unknown-prefix-model", "Incorrect model name assigned"
 
 
-@pytest.mark.asyncio
-async def test_embedding_model_factory_sparse() -> None:
+def test_embedding_model_factory_sparse() -> None:
     """Test that the factory creates a SparseEmbeddingModel when 'sparse' is provided."""
     embedding = "sparse"
     model = embedding_model_factory(embedding)
@@ -269,8 +268,7 @@ async def test_embedding_model_factory_sparse() -> None:
     assert model.name == "sparse", "Incorrect model name assigned"
 
 
-@pytest.mark.asyncio
-async def test_embedding_model_factory_litellm() -> None:
+def test_embedding_model_factory_litellm() -> None:
     """Test that the factory creates a LiteLLMEmbeddingModel when 'litellm-' prefix is provided."""
     embedding = "litellm-text-embedding-3-small"
     model = embedding_model_factory(embedding)
@@ -280,8 +278,7 @@ async def test_embedding_model_factory_litellm() -> None:
     assert model.name == "text-embedding-3-small", "Incorrect model name assigned"
 
 
-@pytest.mark.asyncio
-async def test_embedding_model_factory_default() -> None:
+def test_embedding_model_factory_default() -> None:
     """Test that the factory defaults to LiteLLMEmbeddingModel when no known prefix is provided."""
     embedding = "default-model"
     model = embedding_model_factory(embedding)

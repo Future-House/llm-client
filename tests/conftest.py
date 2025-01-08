@@ -6,7 +6,6 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-# from unittest.mock import patch
 import pytest
 from dotenv import load_dotenv
 
