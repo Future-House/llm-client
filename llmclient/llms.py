@@ -109,13 +109,15 @@ def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
 
 
 def validate_json_completion(
-    completion: litellm.ModelResponse, output_type: type[BaseModel] | JSONSchema
+    completion: litellm.ModelResponse,
+    output_type: type[BaseModel] | TypeAdapter | JSONSchema,
 ) -> None:
     """Validate a completion against a JSON schema.
 
     Args:
         completion: The completion to validate.
-        output_type: A JSON schema or a Pydantic model to validate the completion.
+        output_type: A Pydantic model, Pydantic type adapter, or a JSON schema to
+            validate the completion.
     """
     try:
         for choice in completion.choices:
@@ -131,6 +133,8 @@ def validate_json_completion(
                 litellm.litellm_core_utils.json_validation_rule.validate_schema(
                     schema=dict(output_type), response=choice.message.content
                 )
+            elif isinstance(output_type, TypeAdapter):
+                output_type.validate_json(choice.message.content)
             else:
                 output_type.model_validate_json(choice.message.content)
     except ValidationError as err:
@@ -737,7 +741,7 @@ class MultipleCompletionLLMModel(BaseModel):
         self,
         messages: list[Message],
         callbacks: list[Callable] | None = None,
-        output_type: type[BaseModel] | JSONSchema | None = None,
+        output_type: type[BaseModel] | TypeAdapter | JSONSchema | None = None,
         tools: list[Tool] | None = None,
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
         **chat_kwargs,
@@ -798,7 +802,10 @@ class MultipleCompletionLLMModel(BaseModel):
                 },
             }
         elif output_type is not None:  # Use JSON mode
-            schema: str = json.dumps(output_type.model_json_schema())
+            if isinstance(output_type, TypeAdapter):
+                schema: str = json.dumps(output_type.json_schema())
+            else:
+                schema = json.dumps(output_type.model_json_schema())
             schema_msg = f"Respond following this JSON schema:\n\n{schema}"
             # Get the system prompt and its index, or the index to add it
             i, system_prompt = next(
@@ -941,7 +948,7 @@ class MultipleCompletionLLMModel(BaseModel):
         self,
         messages: list[Message],
         callbacks: list[Callable] | None = None,
-        output_type: type[BaseModel] | None = None,
+        output_type: type[BaseModel] | TypeAdapter | None = None,
         tools: list[Tool] | None = None,
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
         **chat_kwargs,
