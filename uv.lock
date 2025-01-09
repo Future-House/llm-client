@@ -537,7 +537,7 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.0.9.dev7+g43e2393"
+version = "0.0.10.dev0+g25c76c8.d20250109"
 source = { editable = "." }
 dependencies = [
     { name = "coredis" },
@@ -553,6 +553,7 @@ dependencies = [
 dev = [
     { name = "fhaviary", extra = ["xml"] },
     { name = "ipython" },
+    { name = "litellm" },
     { name = "mypy" },
     { name = "numpy" },
     { name = "pre-commit" },
@@ -579,6 +580,7 @@ codeflash = [
     { name = "codeflash" },
     { name = "fhaviary", extra = ["xml"] },
     { name = "ipython" },
+    { name = "litellm" },
     { name = "mypy" },
     { name = "numpy" },
     { name = "pre-commit" },
@@ -598,6 +600,7 @@ codeflash = [
 dev = [
     { name = "fhaviary", extra = ["xml"] },
     { name = "ipython" },
+    { name = "litellm" },
     { name = "mypy" },
     { name = "numpy" },
     { name = "pre-commit" },
@@ -625,6 +628,7 @@ requires-dist = [
     { name = "limits" },
     { name = "litellm", marker = "python_full_version < '3.13'" },
     { name = "litellm", marker = "python_full_version >= '3.13'", specifier = ">=1.49.1" },
+    { name = "litellm", marker = "extra == 'dev'", specifier = "<1.57.2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
     { name = "numpy", marker = "extra == 'local'" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
