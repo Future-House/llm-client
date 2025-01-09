@@ -2,7 +2,8 @@ interactions:
   - request:
       body:
         '{"messages":[{"role":"user","content":"My name is Claude and I am 1 year
-        old. What is my name and age?"}],"model":"gpt-4o","n":2,"response_format":{"type":"json_schema","json_schema":{"strict":true,"schema":{"properties":{"name":{"title":"Name","type":"string"},"age":{"title":"Age","type":"integer"}},"required":["name","age"],"title":"DummyOutputSchema","type":"object","additionalProperties":false},"name":"DummyOutputSchema"}}}'
+        old. What is my name and age?"}],"model":"gpt-4o","n":2,"response_format":{"type":"json_schema","json_schema":{"strict":true,"schema":{"properties":{"name":{"title":"Name","type":"string"},"age":{"description":"Age
+        in years.","title":"Age","type":"integer"}},"required":["name","age"],"title":"DummyOutputSchema","type":"object","additionalProperties":false},"name":"DummyOutputSchema"}}}'
       headers:
         accept:
           - application/json
@@ -11,7 +12,7 @@ interactions:
         connection:
           - keep-alive
         content-length:
-          - "431"
+          - "461"
         content-type:
           - application/json
         host:
@@ -31,7 +32,7 @@ interactions:
         x-stainless-raw-response:
           - "true"
         x-stainless-retry-count:
-          - "0"
+          - "1"
         x-stainless-runtime:
           - CPython
         x-stainless-runtime-version:
@@ -41,19 +42,19 @@ interactions:
     response:
       body:
         string: !!binary |
-          H4sIAAAAAAAAAwAAAP//3FNNa9wwFLz7V4h3tos368Qb39qeSkO+IIQQF/NWemurkSVFkqFh2f8e
-          5N2sHZJCz734MPNmPCM9bRPGQAqoGPAOA++tyr7yzjnx7ao76x+6HzfXz7YoLi+W5c/b+7tnSKPC
-          rH8TD2+qL9z0VlGQRu9p7ggDRddFuVyWq1VxejoSvRGkoqy1IStMdpKfFFm+yvKzg7AzkpOHij0m
-          jDG2Hb8xohb0ByqWp29IT95jS1AdhxgDZ1REAL2XPqAOkE4kNzqQHlNva9DYUw1VDd8VDoJqSGvA
-          NkKL3VzlaDN4jKH1oNQB3x1jKNNaZ9b+wB/xjdTSd40j9EbHX/pgLCQz8Ydui/+hW8LYr/Eqh3cN
-          wDrT29AE80Q6GpbnezuYdmciF6sDGUxANeHnZfqJWyMooFR+dlzAkXckJuW0NzgIaWbE/Eo+hvnM
-          e99b6vZf7CeCc7KBRGMdCcnfF57GHMWX9bex4xmPgcG/+EB9s5G6JWed3C/Axja85JjTGjlCskte
-          AQAA//8DAOP4nprlAwAA
+          H4sIAAAAAAAAAwAAAP//3FM9b9swEN31K4ibrUJSbNXWFnQpOnRLGiAqBJo8SUwpHkFSQQLD/72g
+          /CEZaYHOXTi8d+/xHe94SBgDJaFiIHoexGB1em/406saNv33r5mn9tG8/nj49liOD/uXew2rqKD9
+          C4pwUX0SNFiNQZE50cIhDxhd88935d023+W7iRhIoo6yzoZ0TWmRFes026ZZeRb2pAR6qNhzwhhj
+          h+mMEY3EN6hYtrogA3rPO4TqWsQYONIRAe698oGbAKuZFGQCmin1oQbDB6yhquGL5qPEGlY18C5C
+          +XGpctiOnsfQZtT6jB+vMTR11tHen/kr3iqjfN845J5MvNIHspAsxB96y/+H3hLGfk6jHG86AOto
+          sKEJ9AtNNNxuTnYw785MFucxQ6DA9Yzn2UV1Y9dIDFxpv3gvEFz0KGfpvDh8lIoWxHImH9P8yfvU
+          uDLdv9jPhBBoA8rGOpRK3HY8lzmMX+tvZddHngKDf/cBh6ZVpkNnnTptQGubTVtkZVls1jtIjslv
+          AAAA//8DAFdJovPmAwAA
       headers:
         CF-Cache-Status:
           - DYNAMIC
         CF-RAY:
-          - 8ef8eb5459995c1d-SJC
+          - 8ff04054ae4b9e5c-SJC
         Connection:
           - keep-alive
         Content-Encoding:
@@ -61,15 +62,9 @@ interactions:
         Content-Type:
           - application/json
         Date:
-          - Mon, 09 Dec 2024 23:54:15 GMT
+          - Thu, 09 Jan 2025 00:18:40 GMT
         Server:
           - cloudflare
-        Set-Cookie:
-          - __cf_bm=eThvnPKsEWq81agLsGvOWG3bDSV7z.O._JEvK_LDWKo-1733788455-1.0.1.1-4BqFkZTxOoot56DBhhcY4KTbLV6Dn33HJ7X7MttciM9xBNhDaDEIYxZny..80Wu2vmkDSL5bw7MqQa.zI_1D0g;
-            path=/; expires=Tue, 10-Dec-24 00:24:15 GMT; domain=.api.openai.com; HttpOnly;
-            Secure; SameSite=None
-          - _cfuvid=B45jEr7m1koJPP4VpyiYJCVjXWCenQuz8H_umfGeEBQ-1733788455794-0.0.1.1-604800000;
-            path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
         Transfer-Encoding:
           - chunked
         X-Content-Type-Options:
@@ -81,7 +76,7 @@ interactions:
         openai-organization:
           - future-house-xr4tdh
         openai-processing-ms:
-          - "602"
+          - "892"
         openai-version:
           - "2020-10-01"
         strict-transport-security:
@@ -99,7 +94,7 @@ interactions:
         x-ratelimit-reset-tokens:
           - 0s
         x-request-id:
-          - req_ef98d385b8292c3cd3fe3cb3fd0f31c2
+          - req_7ff1ffa34df34287ed396ab6176cbd29
       status:
         code: 200
         message: OK

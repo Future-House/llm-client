@@ -798,7 +798,7 @@ class MultipleCompletionLLMModel(BaseModel):
                 },
             }
         elif output_type is not None:  # Use JSON mode
-            schema = json.dumps(output_type.model_json_schema(mode="serialization"))
+            schema: str = json.dumps(output_type.model_json_schema())
             schema_msg = f"Respond following this JSON schema:\n\n{schema}"
             # Get the system prompt and its index, or the index to add it
             i, system_prompt = next(
