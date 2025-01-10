@@ -7,7 +7,7 @@ import litellm
 import numpy as np
 import pytest
 from aviary.core import Message, Tool, ToolRequestMessage
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, TypeAdapter, computed_field
 
 from llmclient.exceptions import JSONSchemaValidationError
 from llmclient.llms import (
@@ -261,7 +261,12 @@ class TestLiteLLMModel:
 
 class DummyOutputSchema(BaseModel):
     name: str
-    age: int
+    age: int = Field(description="Age in years.")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def name_and_age(self) -> str:  # So we can test computed_field is not included
+        return f"{self.name}, {self.age}"
 
 
 class TestMultipleCompletionLLMModel:
@@ -364,7 +369,10 @@ class TestMultipleCompletionLLMModel:
     @pytest.mark.parametrize(
         ("model_name", "output_type"),
         [
-            pytest.param("gpt-3.5-turbo", DummyOutputSchema, id="json-mode"),
+            pytest.param("gpt-3.5-turbo", DummyOutputSchema, id="json-mode-base-model"),
+            pytest.param(
+                "gpt-4o", TypeAdapter(DummyOutputSchema), id="json-mode-type-adapter"
+            ),
             pytest.param(
                 "gpt-4o", DummyOutputSchema.model_json_schema(), id="structured-outputs"
             ),
