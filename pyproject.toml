@@ -44,6 +44,7 @@ dev = [
     "fh-llm-client[local]",
     "fhaviary[xml]",
     "ipython>=8",  # Pin to keep recent
+    "litellm<1.57.2",  # Pin for Router.acompletion typing break from https://github.com/BerriAI/litellm/pull/7594
     "mypy>=1.8",  # Pin for mutable-override
     "pre-commit>=3.4",  # Pin to keep recent
     "pylint-pydantic",
