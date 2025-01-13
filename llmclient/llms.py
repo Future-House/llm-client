@@ -158,11 +158,11 @@ class LLMModel(ABC, BaseModel):
     )
     config: dict = Field(default_factory=dict)
 
-    async def acomplete(self, prompt: str) -> Chunk:
+    async def acomplete(self, prompt: str) -> LLMResult:
         """Return the completion as string and the number of tokens in the prompt and completion."""
         raise NotImplementedError
 
-    async def acomplete_iter(self, prompt: str) -> AsyncIterable[Chunk]:
+    async def acomplete_iter(self, prompt: str) -> AsyncIterable[LLMResult]:
         """Return an async generator that yields chunks of the completion.
 
         Only the last tuple will be non-zero.
@@ -171,11 +171,11 @@ class LLMModel(ABC, BaseModel):
         if False:  # type: ignore[unreachable]  # pylint: disable=using-constant-test
             yield  # Trick mypy: https://github.com/python/mypy/issues/5070#issuecomment-1050834495
 
-    async def achat(self, messages: list[Message]) -> Chunk:
+    async def achat(self, messages: list[Message]) -> LLMResult:
         """Return the completion as string and the number of tokens in the prompt and completion."""
         raise NotImplementedError
 
-    async def achat_iter(self, messages: list[Message]) -> AsyncIterable[Chunk]:
+    async def achat_iter(self, messages: list[Message]) -> AsyncIterable[LLMResult]:
         """Return an async generator that yields chunks of the completion.
 
         Only the last tuple will be non-zero.
@@ -189,6 +189,9 @@ class LLMModel(ABC, BaseModel):
 
     def count_tokens(self, text: str) -> int:
         return len(text) // 4  # gross approximation
+
+    def __str__(self) -> str:
+        return f"{type(self).__name__} {self.name}"
 
     async def call(
         self,
@@ -473,6 +476,9 @@ class PassThroughRouter(litellm.Router):  # TODO: add rate_limited
 class LiteLLMModel(LLMModel):
     """A wrapper around the litellm library."""
 
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = "gpt-4o-mini"
     config: dict = Field(
         default_factory=dict,
         description=(
@@ -489,7 +495,6 @@ class LiteLLMModel(LLMModel):
             " limits.RateLimitItem string for parsing."
         ),
     )
-    name: str = "gpt-4o-mini"
     _router: litellm.Router | None = None
 
     @model_validator(mode="before")
@@ -536,6 +541,16 @@ class LiteLLMModel(LLMModel):
             raise ValueError("Only one model name per model list is supported for now.")
         return data
 
+    # SEE: https://platform.openai.com/docs/api-reference/chat/create#chat-create-tool_choice
+    # > `none` means the model will not call any tool and instead generates a message.
+    # > `auto` means the model can pick between generating a message or calling one or more tools.
+    # > `required` means the model must call one or more tools.
+    NO_TOOL_CHOICE: ClassVar[str] = "none"
+    MODEL_CHOOSES_TOOL: ClassVar[str] = "auto"
+    TOOL_CHOICE_REQUIRED: ClassVar[str] = "required"
+    # None means we won't provide a tool_choice to the LLM API
+    UNSPECIFIED_TOOL_CHOICE: ClassVar[None] = None
+
     def __getstate__(self):
         # Prevent _router from being pickled, SEE: https://stackoverflow.com/a/2345953
         state = super().__getstate__()
@@ -565,47 +580,47 @@ class LiteLLMModel(LLMModel):
             )
 
     @rate_limited
-    async def acomplete(self, prompt: str) -> Chunk:  # type: ignore[override]
+    async def acomplete(self, prompt: str) -> LLMResult:  # type: ignore[override]
         response = await self.router.atext_completion(model=self.name, prompt=prompt)
-        return Chunk(
+        return LLMResult(
             text=response.choices[0].text,
-            prompt_tokens=response.usage.prompt_tokens,
-            completion_tokens=response.usage.completion_tokens,
+            prompt_count=response.usage.prompt_tokens,
+            completion_count=response.usage.completion_tokens,
         )
 
     @rate_limited
     async def acomplete_iter(  # type: ignore[override]
         self, prompt: str
-    ) -> AsyncIterable[Chunk]:
+    ) -> AsyncIterable[LLMResult]:
         completion = await self.router.atext_completion(
             model=self.name,
             prompt=prompt,
             stream=True,
             stream_options={"include_usage": True},
         )
-        async for chunk in completion:
-            yield Chunk(
-                text=chunk.choices[0].text, prompt_tokens=0, completion_tokens=0
+        async for c in completion:
+            yield LLMResult(
+                text=c.choices[0].text, prompt_tokens=0, completion_tokens=0
             )
-        if hasattr(chunk, "usage") and hasattr(chunk.usage, "prompt_tokens"):
-            yield Chunk(
-                text=chunk.choices[0].text, prompt_tokens=0, completion_tokens=0
+        if hasattr(c, "usage") and hasattr(c.usage, "prompt_tokens"):
+            yield LLMResult(
+                text=c.choices[0].text, prompt_tokens=0, completion_tokens=0
             )
 
     @rate_limited
-    async def achat(self, messages: list[Message]) -> Chunk:  # type: ignore[override]
+    async def achat(self, messages: list[Message]) -> LLMResult:  # type: ignore[override]
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
         response = await self.router.acompletion(self.name, prompts)
-        return Chunk(
+        return LLMResult(
             text=cast(litellm.Choices, response.choices[0]).message.content,
-            prompt_tokens=response.usage.prompt_tokens,  # type: ignore[attr-defined]
-            completion_tokens=response.usage.completion_tokens,  # type: ignore[attr-defined]
+            prompt_count=response.usage.prompt_tokens,  # type: ignore[attr-defined]
+            completion_count=response.usage.completion_tokens,  # type: ignore[attr-defined]
         )
 
     @rate_limited
     async def achat_iter(  # type: ignore[override]
         self, messages: list[Message]
-    ) -> AsyncIterable[Chunk]:
+    ) -> AsyncIterable[LLMResult]:
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
         completion = await self.router.acompletion(
             self.name,
@@ -613,17 +628,17 @@ class LiteLLMModel(LLMModel):
             stream=True,
             stream_options={"include_usage": True},
         )
-        async for chunk in completion:
-            yield Chunk(
-                text=chunk.choices[0].delta.content,
+        async for c in completion:
+            yield LLMResult(
+                text=c.choices[0].delta.content,
                 prompt_tokens=0,
                 completion_tokens=0,
             )
-        if hasattr(chunk, "usage") and hasattr(chunk.usage, "prompt_tokens"):
-            yield Chunk(
+        if hasattr(c, "usage") and hasattr(c.usage, "prompt_tokens"):
+            yield LLMResult(
                 text=None,
-                prompt_tokens=chunk.usage.prompt_tokens,
-                completion_tokens=chunk.usage.completion_tokens,
+                prompt_tokens=c.usage.prompt_tokens,
+                completion_tokens=c.usage.completion_tokens,
             )
 
     def infer_llm_type(self) -> str:
@@ -667,10 +682,6 @@ class MultipleCompletionLLMModel(BaseModel):
             "n is the number of completions to generate by default."
         ),
     )
-    encoding: Any | None = None
-
-    def __str__(self) -> str:
-        return f"{type(self).__name__} {self.name}"
 
     @model_validator(mode="after")
     def set_model_name(self) -> Self:
@@ -684,37 +695,6 @@ class MultipleCompletionLLMModel(BaseModel):
         # note we do not consider case where both are set
         # because that could be true if the model is fine-tuned
         return self
-
-    async def achat(
-        self, messages: Iterable[Message], **kwargs
-    ) -> litellm.ModelResponse:
-        return await litellm.acompletion(
-            messages=[m.model_dump(by_alias=True) for m in messages],
-            **(self.config | kwargs),
-        )
-
-    async def achat_iter(self, messages: Iterable[Message], **kwargs) -> AsyncGenerator:
-        return cast(
-            AsyncGenerator,
-            await litellm.acompletion(
-                messages=[m.model_dump(by_alias=True) for m in messages],
-                stream=True,
-                stream_options={
-                    "include_usage": True,  # Included to get prompt token counts
-                },
-                **(self.config | kwargs),
-            ),
-        )
-
-    # SEE: https://platform.openai.com/docs/api-reference/chat/create#chat-create-tool_choice
-    # > `none` means the model will not call any tool and instead generates a message.
-    # > `auto` means the model can pick between generating a message or calling one or more tools.
-    # > `required` means the model must call one or more tools.
-    NO_TOOL_CHOICE: ClassVar[str] = "none"
-    MODEL_CHOOSES_TOOL: ClassVar[str] = "auto"
-    TOOL_CHOICE_REQUIRED: ClassVar[str] = "required"
-    # None means we won't provide a tool_choice to the LLM API
-    UNSPECIFIED_TOOL_CHOICE: ClassVar[None] = None
 
     async def call(  # noqa: C901, PLR0915
         self,
