@@ -10,7 +10,6 @@ from limits import RateLimitItemPerSecond
 from llmclient.constants import CHARACTERS_PER_TOKEN_ASSUMPTION
 from llmclient.embeddings import LiteLLMEmbeddingModel
 from llmclient.llms import (
-    Chunk,
     LiteLLMModel,
 )
 from llmclient.types import LLMResult
@@ -136,13 +135,13 @@ async def time_n_llm_methods(
     character_count = 0
     token_count = 0
 
-    if isinstance(outputs[0], Chunk | LLMResult):
+    if isinstance(outputs[0], LLMResult):
         character_count = sum(len(o.text or "") for o in outputs)
     else:
         character_count = sum(len(o) for o in outputs)
 
-    if hasattr(outputs[0], "prompt_tokens"):
-        token_count = sum(o.prompt_tokens + o.completion_tokens for o in outputs)
+    if hasattr(outputs[0], "prompt_count"):
+        token_count = sum(o.prompt_count + o.completion_count for o in outputs)
 
     return (
         (character_count / CHARACTERS_PER_TOKEN_ASSUMPTION)

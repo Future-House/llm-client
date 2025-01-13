@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field, TypeAdapter, computed_field
 
 from llmclient.exceptions import JSONSchemaValidationError
 from llmclient.llms import (
-    Chunk,
     CommonLLMNames,
     LiteLLMModel,
     MultipleCompletionLLMModel,
@@ -97,6 +96,7 @@ class TestLiteLLMModel:
         assert isinstance(results.prompt[1], Message)
         assert len(results.prompt) == 2
         assert results.prompt[1].content
+        assert isinstance(results.text, str)
         assert "red" in results.text.lower()
         assert results.seconds_to_last_token > 0
         assert results.prompt_count > 0
@@ -113,8 +113,9 @@ class TestLiteLLMModel:
         assert isinstance(results.prompt[1], Message)
         assert len(results.prompt) == 2
         assert results.prompt[1].content
+        assert isinstance(results.text, str)
         assert "red" in results.text.lower()
-        assert results.seconds_to_first_token > 0
+        assert results.seconds_to_last_token > 0
         assert results.prompt_count > 0
         assert results.completion_count > 0
         assert results.cost > 0
@@ -163,7 +164,7 @@ class TestLiteLLMModel:
             callbacks=[accum],
         )
         assert completion.model == "gpt-4o-mini"
-        assert completion.seconds_to_first_token > 0
+        assert completion.seconds_to_last_token > 0
         assert completion.prompt_count > 0
         assert completion.completion_count > 0
         assert str(completion) == "".join(outputs)
@@ -174,7 +175,6 @@ class TestLiteLLMModel:
             data={"animal": "duck"},
             system_prompt=None,
         )
-        assert completion.seconds_to_first_token == 0
         assert completion.seconds_to_last_token > 0
         assert completion.cost > 0
 
@@ -223,15 +223,15 @@ class TestLiteLLMModel:
             side_effect=litellm.Router.atext_completion,
             autospec=True,
         ) as mock_atext_completion:
-            chunk = await llm.acomplete("Please tell me a story")  # type: ignore[call-arg]
+            completion = await llm.acomplete("Please tell me a story")  # type: ignore[call-arg]
         if bypassed_router:
             mock_atext_completion.assert_not_awaited()
         else:
             mock_atext_completion.assert_awaited_once()
-        assert isinstance(chunk, Chunk)
-        assert chunk.completion_tokens == 3
-        assert chunk.text
-        assert len(chunk.text) < 20
+        assert isinstance(completion, LLMResult)
+        assert completion.completion_count == 3
+        assert completion.text
+        assert len(completion.text) < 20
 
     def test_pickling(self, tmp_path: pathlib.Path) -> None:
         pickle_path = tmp_path / "llm_model.pickle"
@@ -294,12 +294,12 @@ class TestMultipleCompletionLLMModel:
         assert len(response.choices) == 1
 
         # Check we can iterate through the response
-        async for chunk in await model.achat_iter(
+        async for completion in await model.achat_iter(
             messages=[
                 Message(content="What are three things I should do today?"),
             ]
         ):
-            assert len(chunk.choices) == 1
+            assert len(completion.choices) == 1
 
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.parametrize("model_name", ["gpt-3.5-turbo"])

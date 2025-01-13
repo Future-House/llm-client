@@ -52,7 +52,7 @@ from llmclient.cost_tracker import TrackedStreamWrapper, track_costs, track_cost
 from llmclient.exceptions import JSONSchemaValidationError
 from llmclient.prompts import default_system_prompt
 from llmclient.rate_limiter import GLOBAL_LIMITER
-from llmclient.types import Chunk, LLMResult
+from llmclient.types import LLMResult
 from llmclient.utils import get_litellm_retrying_config
 
 logger = logging.getLogger(__name__)
@@ -143,24 +143,26 @@ def validate_json_completion(
         ) from err
 
 
-def prepare_args(func: Callable, chunk: str, name: str | None) -> tuple[tuple, dict]:
+def prepare_args(
+    func: Callable, completion: str, name: str | None
+) -> tuple[tuple, dict]:
     with contextlib.suppress(TypeError):
         if "name" in signature(func).parameters:
-            return (chunk,), {"name": name}
-    return (chunk,), {}
+            return (completion,), {"name": name}
+    return (completion,), {}
 
 
 async def do_callbacks(
     async_callbacks: Iterable[Callable[..., Awaitable]],
     sync_callbacks: Iterable[Callable[..., Any]],
-    chunk: str,
+    completion: str,
     name: str | None,
 ) -> None:
     for f in async_callbacks:
-        args, kwargs = prepare_args(f, chunk, name)
+        args, kwargs = prepare_args(f, completion, name)
         await f(*args, **kwargs)
     for f in sync_callbacks:
-        args, kwargs = prepare_args(f, chunk, name)
+        args, kwargs = prepare_args(f, completion, name)
         f(*args, **kwargs)
 
 
@@ -175,7 +177,7 @@ class LLMModel(ABC, BaseModel):
         default=None,
         description=(
             "An async callback that will be executed on each"
-            " LLMResult (different than callbacks that execute on each chunk)"
+            " LLMResult (different than callbacks that execute on each completion)"
         ),
         exclude=True,
     )
@@ -186,7 +188,7 @@ class LLMModel(ABC, BaseModel):
         raise NotImplementedError
 
     async def acomplete_iter(self, prompt: str) -> AsyncIterable[LLMResult]:
-        """Return an async generator that yields chunks of the completion.
+        """Return an async generator that yields completions.
 
         Only the last tuple will be non-zero.
         """
@@ -199,7 +201,7 @@ class LLMModel(ABC, BaseModel):
         raise NotImplementedError
 
     async def achat_iter(self, messages: list[Message]) -> AsyncIterable[LLMResult]:
-        """Return an async generator that yields chunks of the completion.
+        """Return an async generator that yields completions.
 
         Only the last tuple will be non-zero.
         """
@@ -300,7 +302,7 @@ class LLMModel(ABC, BaseModel):
 
         Args:
             messages: List of messages to use.
-            callbacks: Optional functions to call with each chunk of the completion.
+            callbacks: Optional functions to call with each completion.
             name: Optional name for the result.
             system_prompt: System prompt to use, or None/empty string to not use one.
 
@@ -323,25 +325,25 @@ class LLMModel(ABC, BaseModel):
 
         start_clock = asyncio.get_running_loop().time()
         if callbacks is None:
-            chunk = await self.achat(messages)
-            output = chunk.text
+            completion = await self.achat(messages)
+            output = completion.text
         else:
             sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
             async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
-            completion = await self.achat_iter(messages)  # type: ignore[misc]
+            completions = await self.achat_iter(messages)  # type: ignore[misc]
             text_result = []
-            async for chunk in completion:
-                if chunk.text:
-                    if result.seconds_to_first_token == 0:
-                        result.seconds_to_first_token = (
+            async for completion in completions:
+                if completion.text:
+                    if completion.seconds_to_first_token == 0:
+                        completion.seconds_to_first_token = (
                             asyncio.get_running_loop().time() - start_clock
                         )
-                    text_result.append(chunk.text)
+                    text_result.append(completion.text)
                     await do_callbacks(
-                        async_callbacks, sync_callbacks, chunk.text, name
+                        async_callbacks, sync_callbacks, completion.text, name
                     )
             output = "".join(text_result)
-        usage = chunk.prompt_tokens, chunk.completion_tokens
+        usage = completion.prompt_count, completion.completion_count
         if sum(usage) > 0:
             result.prompt_count, result.completion_count = usage
         elif output:
@@ -368,7 +370,7 @@ class LLMModel(ABC, BaseModel):
         Args:
             prompt: Prompt to use.
             data: Keys for the input variables that will be formatted into prompt.
-            callbacks: Optional functions to call with each chunk of the completion.
+            callbacks: Optional functions to call with each completion.
             name: Optional name for the result.
             system_prompt: System prompt to use, or None/empty string to not use one.
 
@@ -387,26 +389,26 @@ class LLMModel(ABC, BaseModel):
 
         start_clock = asyncio.get_running_loop().time()
         if callbacks is None:
-            chunk = await self.acomplete(formatted_prompt)
-            output = chunk.text
+            completion = await self.acomplete(formatted_prompt)
+            output = completion.text
         else:
             sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
             async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
 
-            completion = self.acomplete_iter(formatted_prompt)
+            completions = self.acomplete_iter(formatted_prompt)
             text_result = []
-            async for chunk in completion:
-                if chunk.text:
-                    if result.seconds_to_first_token == 0:
-                        result.seconds_to_first_token = (
+            async for completion in completions:
+                if completion.text:
+                    if completion.seconds_to_first_token == 0:
+                        completion.seconds_to_first_token = (
                             asyncio.get_running_loop().time() - start_clock
                         )
-                    text_result.append(chunk.text)
+                    text_result.append(completion.text)
                     await do_callbacks(
-                        async_callbacks, sync_callbacks, chunk.text, name
+                        async_callbacks, sync_callbacks, completion.text, name
                     )
             output = "".join(text_result)
-        usage = chunk.prompt_tokens, chunk.completion_tokens
+        usage = completion.prompt_count, completion.completion_count
         if sum(usage) > 0:
             result.prompt_count, result.completion_count = usage
         elif output:
@@ -425,17 +427,19 @@ LLMModelOrChild = TypeVar("LLMModelOrChild", bound=LLMModel)
 
 
 def rate_limited(
-    func: Callable[[LLMModelOrChild, Any], Awaitable[Chunk] | AsyncIterable[Chunk]],
+    func: Callable[
+        [LLMModelOrChild, Any], Awaitable[LLMResult] | AsyncIterable[LLMResult]
+    ],
 ) -> Callable[
     [LLMModelOrChild, Any, Any],
-    Awaitable[Chunk | AsyncIterator[Chunk] | AsyncIterator[LLMModelOrChild]],
+    Awaitable[LLMResult | AsyncIterator[LLMResult] | AsyncIterator[LLMModelOrChild]],
 ]:
     """Decorator to rate limit relevant methods of an LLMModel."""
 
     @functools.wraps(func)
     async def wrapper(
         self: LLMModelOrChild, *args: Any, **kwargs: Any
-    ) -> Chunk | AsyncIterator[Chunk] | AsyncIterator[LLMModelOrChild]:
+    ) -> LLMResult | AsyncIterator[LLMResult] | AsyncIterator[LLMModelOrChild]:
         if not hasattr(self, "check_rate_limit"):
             raise NotImplementedError(
                 f"Model {self.name} must have a `check_rate_limit` method."
@@ -463,7 +467,7 @@ def rate_limited(
             async def rate_limited_generator() -> AsyncGenerator[LLMModelOrChild, None]:
                 async for item in func(self, *args, **kwargs):
                     token_count = 0
-                    if isinstance(item, Chunk):
+                    if isinstance(item, LLMResult):
                         token_count = int(
                             len(item.text or "") / CHARACTERS_PER_TOKEN_ASSUMPTION
                         )
@@ -474,8 +478,8 @@ def rate_limited(
 
         result = await func(self, *args, **kwargs)  # type: ignore[misc]
 
-        if func.__name__ in {"acomplete", "achat"} and isinstance(result, Chunk):
-            await self.check_rate_limit(result.completion_tokens)
+        if func.__name__ in {"acomplete", "achat"} and isinstance(result, LLMResult):
+            await self.check_rate_limit(result.completion_count)
         return result
 
     return wrapper
@@ -606,6 +610,7 @@ class LiteLLMModel(LLMModel):
             model=self.name, prompt=prompt
         )
         return LLMResult(
+            model=self.name,
             text=response.choices[0].text,
             prompt_count=response.usage.prompt_tokens,
             completion_count=response.usage.completion_tokens,
@@ -623,11 +628,17 @@ class LiteLLMModel(LLMModel):
         )
         async for c in completion:
             yield LLMResult(
-                text=c.choices[0].text, prompt_tokens=0, completion_tokens=0
+                model=self.name,
+                text=c.choices[0].text,
+                prompt_count=0,
+                completion_count=0,
             )
         if hasattr(c, "usage") and hasattr(c.usage, "prompt_tokens"):
             yield LLMResult(
-                text=c.choices[0].text, prompt_tokens=0, completion_tokens=0
+                model=self.name,
+                text=c.choices[0].text,
+                prompt_count=0,
+                completion_count=0,
             )
 
     @rate_limited
@@ -635,6 +646,7 @@ class LiteLLMModel(LLMModel):
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
         response = await track_costs(self.router.acompletion)(self.name, prompts)
         return LLMResult(
+            model=self.name,
             text=cast(litellm.Choices, response.choices[0]).message.content,
             prompt_count=response.usage.prompt_tokens,  # type: ignore[attr-defined]
             completion_count=response.usage.completion_tokens,  # type: ignore[attr-defined]
@@ -653,15 +665,17 @@ class LiteLLMModel(LLMModel):
         )
         async for c in completion:
             yield LLMResult(
-                text=c.choices[0].delta.content,
-                prompt_tokens=0,
-                completion_tokens=0,
+                model=self.name,
+                text=c.choices[0].delta.content or "",
+                prompt_count=0,
+                completion_count=0,
             )
         if hasattr(c, "usage") and hasattr(c.usage, "prompt_tokens"):
             yield LLMResult(
-                text=None,
-                prompt_tokens=c.usage.prompt_tokens,
-                completion_tokens=c.usage.completion_tokens,
+                model=self.name,
+                text="",
+                prompt_count=c.usage.prompt_tokens,
+                completion_count=c.usage.completion_tokens,
             )
 
     def infer_llm_type(self) -> str:
@@ -899,11 +913,18 @@ class MultipleCompletionLLMModel(BaseModel):
             sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
             async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
             stream_completion = await self.achat_iter(messages, **chat_kwargs)
+            if not all(
+                isinstance(choice, litellm.utils.StreamingChoices)
+                for choice in stream_completion
+            ):
+                raise ValueError("Expected a streaming completion.")
             text_result = []
             role = "assistant"
 
-            async for chunk in stream_completion:
-                delta = chunk.choices[0].delta
+            async for completion in stream_completion:
+                # We ensured every choice is a StreamingChoices object before. So, we can cast here.
+                choice = cast(litellm.utils.StreamingChoices, completion.choices[0])
+                delta = choice.delta
                 role = delta.role or role
                 if delta.content:
                     s = delta.content
@@ -914,8 +935,8 @@ class MultipleCompletionLLMModel(BaseModel):
                     text_result.append(s)
                     [await f(s) for f in async_callbacks]
                     [f(s) for f in sync_callbacks]
-                if hasattr(chunk, "usage"):
-                    result.prompt_count = chunk.usage.prompt_tokens
+                if hasattr(choice, "usage"):
+                    result.prompt_count = choice.usage.prompt_tokens
 
             output = "".join(text_result)
             result.completion_count = litellm.token_counter(
