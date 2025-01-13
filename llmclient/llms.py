@@ -13,6 +13,7 @@ from collections.abc import (
     Iterable,
     Mapping,
 )
+from enum import StrEnum
 from inspect import isasyncgenfunction, signature
 from typing import (
     Any,
@@ -47,6 +48,7 @@ from llmclient.constants import (
     EXTRA_TOKENS_FROM_USER_ROLE,
     IS_PYTHON_BELOW_312,
 )
+from llmclient.cost_tracker import TrackedStreamWrapper, track_costs, track_costs_iter
 from llmclient.exceptions import JSONSchemaValidationError
 from llmclient.prompts import default_system_prompt
 from llmclient.rate_limiter import GLOBAL_LIMITER
@@ -64,6 +66,23 @@ if not IS_PYTHON_BELOW_312:
 # Yes, this is a hack, it mostly matches
 # https://github.com/python-jsonschema/referencing/blob/v0.35.1/referencing/jsonschema.py#L20-L21
 JSONSchema: TypeAlias = Mapping[str, Any]
+
+
+class CommonLLMNames(StrEnum):
+    """When you don't want to think about models, just use one from here."""
+
+    # Use these to avoid thinking about exact versions
+    GPT_4O = "gpt-4o-2024-11-20"
+    CLAUDE_35_SONNET = "claude-3-5-sonnet-20241022"
+
+    # Use these when trying to think of a somewhat opinionated default
+    OPENAI_BASELINE = "gpt-4o-2024-11-20"  # Fast and decent
+
+    # Use these in unit testing
+    OPENAI_TEST = "gpt-4o-mini-2024-07-18"  # Cheap, fast, and not OpenAI's cutting edge
+    ANTHROPIC_TEST = (
+        "claude-3-haiku-20240307"  # Cheap, fast, and not Anthropic's cutting edge
+    )
 
 
 def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
@@ -90,13 +109,15 @@ def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
 
 
 def validate_json_completion(
-    completion: litellm.ModelResponse, output_type: type[BaseModel] | JSONSchema
+    completion: litellm.ModelResponse,
+    output_type: type[BaseModel] | TypeAdapter | JSONSchema,
 ) -> None:
     """Validate a completion against a JSON schema.
 
     Args:
         completion: The completion to validate.
-        output_type: A JSON schema or a Pydantic model to validate the completion.
+        output_type: A Pydantic model, Pydantic type adapter, or a JSON schema to
+            validate the completion.
     """
     try:
         for choice in completion.choices:
@@ -112,6 +133,8 @@ def validate_json_completion(
                 litellm.litellm_core_utils.json_validation_rule.validate_schema(
                     schema=dict(output_type), response=choice.message.content
                 )
+            elif isinstance(output_type, TypeAdapter):
+                output_type.validate_json(choice.message.content)
             else:
                 output_type.model_validate_json(choice.message.content)
     except ValidationError as err:
@@ -261,7 +284,6 @@ class LLMModel(ABC, BaseModel):
             ]
             return await self._run_chat(messages, callbacks, name, system_prompt)
         if self.llm_type == "completion":
-
             return await self._run_completion(
                 prompt, data, callbacks, name, system_prompt
             )
@@ -414,7 +436,6 @@ def rate_limited(
     async def wrapper(
         self: LLMModelOrChild, *args: Any, **kwargs: Any
     ) -> Chunk | AsyncIterator[Chunk] | AsyncIterator[LLMModelOrChild]:
-
         if not hasattr(self, "check_rate_limit"):
             raise NotImplementedError(
                 f"Model {self.name} must have a `check_rate_limit` method."
@@ -581,7 +602,9 @@ class LiteLLMModel(LLMModel):
 
     @rate_limited
     async def acomplete(self, prompt: str) -> LLMResult:  # type: ignore[override]
-        response = await self.router.atext_completion(model=self.name, prompt=prompt)
+        response = await track_costs(self.router.atext_completion)(
+            model=self.name, prompt=prompt
+        )
         return LLMResult(
             text=response.choices[0].text,
             prompt_count=response.usage.prompt_tokens,
@@ -592,7 +615,7 @@ class LiteLLMModel(LLMModel):
     async def acomplete_iter(  # type: ignore[override]
         self, prompt: str
     ) -> AsyncIterable[LLMResult]:
-        completion = await self.router.atext_completion(
+        completion = await track_costs_iter(self.router.atext_completion)(
             model=self.name,
             prompt=prompt,
             stream=True,
@@ -610,7 +633,7 @@ class LiteLLMModel(LLMModel):
     @rate_limited
     async def achat(self, messages: list[Message]) -> LLMResult:  # type: ignore[override]
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
-        response = await self.router.acompletion(self.name, prompts)
+        response = await track_costs(self.router.acompletion)(self.name, prompts)
         return LLMResult(
             text=cast(litellm.Choices, response.choices[0]).message.content,
             prompt_count=response.usage.prompt_tokens,  # type: ignore[attr-defined]
@@ -622,7 +645,7 @@ class LiteLLMModel(LLMModel):
         self, messages: list[Message]
     ) -> AsyncIterable[LLMResult]:
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
-        completion = await self.router.acompletion(
+        completion = await track_costs_iter(self.router.acompletion)(
             self.name,
             prompts,
             stream=True,
@@ -657,7 +680,7 @@ class LiteLLMModel(LLMModel):
     ) -> ToolRequestMessage:
         """Shim to aviary.core.ToolSelector that supports tool schemae."""
         tool_selector = ToolSelector(
-            model_name=self.name, acompletion=self.router.acompletion
+            model_name=self.name, acompletion=track_costs(self.router.acompletion)
         )
         return await tool_selector(*selection_args, **selection_kwargs)
 
@@ -685,10 +708,9 @@ class MultipleCompletionLLMModel(BaseModel):
 
     @model_validator(mode="after")
     def set_model_name(self) -> Self:
-        if (
-            self.config.get("model") in {"gpt-3.5-turbo", None}
-            and self.name != "unknown"
-        ) or (self.name != "unknown" and "model" not in self.config):
+        if (self.config.get("model") is None and self.name != "unknown") or (
+            self.name != "unknown" and "model" not in self.config
+        ):
             self.config["model"] = self.name
         elif "model" in self.config and self.name == "unknown":
             self.name = self.config["model"]
@@ -696,11 +718,41 @@ class MultipleCompletionLLMModel(BaseModel):
         # because that could be true if the model is fine-tuned
         return self
 
+    async def achat(
+        self, messages: Iterable[Message], **kwargs
+    ) -> litellm.ModelResponse:
+        return await track_costs(litellm.acompletion)(
+            messages=[m.model_dump(by_alias=True) for m in messages],
+            **(self.config | kwargs),
+        )
+
+    async def achat_iter(
+        self, messages: Iterable[Message], **kwargs
+    ) -> TrackedStreamWrapper:
+        return await track_costs_iter(litellm.acompletion)(
+            messages=[m.model_dump(by_alias=True) for m in messages],
+            stream=True,
+            stream_options={
+                "include_usage": True,  # Included to get prompt token counts
+            },
+            **(self.config | kwargs),
+        )
+
+    # SEE: https://platform.openai.com/docs/api-reference/chat/create#chat-create-tool_choice
+    # > `none` means the model will not call any tool and instead generates a message.
+    # > `auto` means the model can pick between generating a message or calling one or more tools.
+    # > `required` means the model must call one or more tools.
+    NO_TOOL_CHOICE: ClassVar[str] = "none"
+    MODEL_CHOOSES_TOOL: ClassVar[str] = "auto"
+    TOOL_CHOICE_REQUIRED: ClassVar[str] = "required"
+    # None means we won't provide a tool_choice to the LLM API
+    UNSPECIFIED_TOOL_CHOICE: ClassVar[None] = None
+
     async def call(  # noqa: C901, PLR0915
         self,
         messages: list[Message],
         callbacks: list[Callable] | None = None,
-        output_type: type[BaseModel] | JSONSchema | None = None,
+        output_type: type[BaseModel] | TypeAdapter | JSONSchema | None = None,
         tools: list[Tool] | None = None,
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
         **chat_kwargs,
@@ -761,7 +813,10 @@ class MultipleCompletionLLMModel(BaseModel):
                 },
             }
         elif output_type is not None:  # Use JSON mode
-            schema = json.dumps(output_type.model_json_schema(mode="serialization"))
+            if isinstance(output_type, TypeAdapter):
+                schema: str = json.dumps(output_type.json_schema())
+            else:
+                schema = json.dumps(output_type.model_json_schema())
             schema_msg = f"Respond following this JSON schema:\n\n{schema}"
             # Get the system prompt and its index, or the index to add it
             i, system_prompt = next(
@@ -796,7 +851,7 @@ class MultipleCompletionLLMModel(BaseModel):
         results: list[LLMResult] = []
 
         if callbacks is None:
-            completion: litellm.ModelResponse = await self.achat(prompt, **chat_kwargs)
+            completion = await self.achat(prompt, **chat_kwargs)
             if output_type is not None:
                 validate_json_completion(completion, output_type)
 
@@ -904,7 +959,7 @@ class MultipleCompletionLLMModel(BaseModel):
         self,
         messages: list[Message],
         callbacks: list[Callable] | None = None,
-        output_type: type[BaseModel] | None = None,
+        output_type: type[BaseModel] | TypeAdapter | None = None,
         tools: list[Tool] | None = None,
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
         **chat_kwargs,

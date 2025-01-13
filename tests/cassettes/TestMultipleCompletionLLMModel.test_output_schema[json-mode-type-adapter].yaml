@@ -1,10 +1,11 @@
 interactions:
   - request:
       body:
-        '{"messages": [{"role": "user", "content": [{"type": "image_url", "image_url":
-        {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKElEQVR4nO3NMQEAAAjDMMC/ZzDBvlRA01vZJvwHAAAAAAAAAAAAbx2jxAE/i2AjOgAAAABJRU5ErkJggg=="}},
-        {"type": "text", "text": "What color is this square? Respond only with the color
-        name."}]}], "model": "gpt-4o-mini-2024-07-18"}'
+        '{"messages":[{"role":"system","content":"Respond following this JSON schema:\n\n{\"properties\":
+        {\"name\": {\"title\": \"Name\", \"type\": \"string\"}, \"age\": {\"description\":
+        \"Age in years.\", \"title\": \"Age\", \"type\": \"integer\"}}, \"required\":
+        [\"name\", \"age\"], \"title\": \"DummyOutputSchema\", \"type\": \"object\"}"},{"role":"user","content":"My
+        name is Claude and I am 1 year old. What is my name and age?"}],"model":"gpt-4o","n":2,"response_format":{"type":"json_object"}}'
       headers:
         accept:
           - application/json
@@ -13,13 +14,13 @@ interactions:
         connection:
           - keep-alive
         content-length:
-          - "373"
+          - "494"
         content-type:
           - application/json
         host:
           - api.openai.com
         user-agent:
-          - AsyncOpenAI/Python 1.46.1
+          - AsyncOpenAI/Python 1.56.2
         x-stainless-arch:
           - arm64
         x-stainless-async:
@@ -29,9 +30,11 @@ interactions:
         x-stainless-os:
           - MacOS
         x-stainless-package-version:
-          - 1.46.1
+          - 1.56.2
         x-stainless-raw-response:
           - "true"
+        x-stainless-retry-count:
+          - "1"
         x-stainless-runtime:
           - CPython
         x-stainless-runtime-version:
@@ -41,18 +44,19 @@ interactions:
     response:
       body:
         string: !!binary |
-          H4sIAAAAAAAAA4ySUU+DMBSF3/kVTZ+HgbG5yZvRF80SjUZfjCGlvUC19DZtZ5zL/rspY4NFTXzh
-          4X73HM65sI0IoVLQnFDeMM9bo+JLZsrF7Kq8M9fl0wabr9Xi5vb++aNeJeqRToICyzfg/qA649ga
-          BV6i3mNugXkIrukiy7JZOk+zDrQoQAVZbXw8w7iVWsbTZDqLk0WcLnt1g5KDozl5iQghZNs9Q04t
-          4JPmJJkcJi04x2qg+XGJEGpRhQllzknnmfZ0MkCO2oPuoj+AGBML1dqxkE6vlernu+OrFNbGYul6
-          fpxXUkvXFBaYQx1snUdDO7qLCHntKq1PUlJjsTW+8PgOOhgu59O+Ex1OOeC0Zx49UyeqAzkxLAR4
-          JpUbXYVyxhsQg3Y4IVsLiSMQjWr/TPOb97661PV/7AfAORgPojAWhOSnjYc1C+FP+2vteOYuMHUb
-          56EtKqlrsMbK/XeuTJEJSKfLZXJ+QaNd9A0AAP//AwDhZT1e9QIAAA==
+          H4sIAAAAAAAAAwAAAP//3FPBTuMwFLznK6x3TlAS2oTNDSFAHEFaCbRZRa79khoc27IdaUvVf0dO
+          QxMEK3HmksPMm8mM/byPCAHBoSLAttSz3sjkUtGXUt5J2d48PK5390+vu9XvaytuH153vyAOCr15
+          RubfVWdM90aiF1odaWaRegyuWXlenF/kRbkeiV5zlEHWGZ+sdJKn+SpJL5K0mIRbLRg6qMifiBBC
+          9uM3RFQc/0FF0vgd6dE52iFUpyFCwGoZEKDOCeep8hDPJNPKoxpT72tQtMcaKlLDlaQDxxpiUgPt
+          RjA7LIUW28HRkFsNUk744ZRE6s5YvXETf8JboYTbNhap0yr81XltIFqIP9XLfki9iJC/44UOH0qA
+          sbo3vvH6BVUwzNKpMcwrNLN5MZFeeyoXqryMv/BrOHoqpFucGTDKtshn6bw/dOBCL4jlvXxO85X3
+          sblQ3XfsZ4IxNB55YyxywT42nscshhf2v7HTKY+Bwe2cx75pherQGiuOW9CaZlPyYt1mdL2B6BC9
+          AQAA//8DAOyaJNbtAwAA
       headers:
         CF-Cache-Status:
           - DYNAMIC
         CF-RAY:
-          - 8ece4ba6cfdfebed-SJC
+          - 8ff052c9b8e6fa8a-SJC
         Connection:
           - keep-alive
         Content-Encoding:
@@ -60,7 +64,7 @@ interactions:
         Content-Type:
           - application/json
         Date:
-          - Wed, 04 Dec 2024 19:45:14 GMT
+          - Thu, 09 Jan 2025 00:31:16 GMT
         Server:
           - cloudflare
         Transfer-Encoding:
@@ -74,31 +78,25 @@ interactions:
         openai-organization:
           - future-house-xr4tdh
         openai-processing-ms:
-          - "1407"
+          - "640"
         openai-version:
           - "2020-10-01"
         strict-transport-security:
           - max-age=31536000; includeSubDomains; preload
-        x-ratelimit-limit-input-images:
-          - "50000"
         x-ratelimit-limit-requests:
-          - "30000"
+          - "10000"
         x-ratelimit-limit-tokens:
-          - "150000000"
-        x-ratelimit-remaining-input-images:
-          - "49999"
+          - "30000000"
         x-ratelimit-remaining-requests:
-          - "29999"
+          - "9999"
         x-ratelimit-remaining-tokens:
-          - "149999202"
-        x-ratelimit-reset-input-images:
-          - 1ms
+          - "29999886"
         x-ratelimit-reset-requests:
-          - 2ms
+          - 6ms
         x-ratelimit-reset-tokens:
           - 0s
         x-request-id:
-          - req_26f1273572db14ca7781f9d29535e49a
+          - req_c993df701dab27752a7cafe3ba505f63
       status:
         code: 200
         message: OK

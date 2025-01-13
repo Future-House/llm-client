@@ -12,7 +12,7 @@ jobs:
     if: github.event_name == 'pull_request' # pre-commit-ci/lite-action only runs here
     strategy:
       matrix:
-        python-version: [3.11, 3.13.0] # Our min and max supported Python versions
+        python-version: [3.11, 3.13] # Our min and max supported Python versions
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,26 +27,28 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.11, 3.13.0] # Our min and max supported Python versions
+        python-version: [3.11, 3.13] # Our min and max supported Python versions
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # For setuptools-scm, replace with fetch-tags after https://github.com/actions/checkout/issues/1471
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
       - run: uv python pin ${{ matrix.python-version }}
       - name: Check build
-        if: matrix.python-version == '3.11'
+        if: matrix.python-version == '3.11' # Only need to run this on one version
         uses: hynek/build-and-inspect-python-package@v2
       - run: uv sync --python-preference=only-managed
       - run: uv run refurb llmclient tests
       - run: uv run pylint llmclient
+      - if: matrix.python-version == '3.11' # Only need to run this on one version
+        uses: suzuki-shunsuke/github-action-renovate-config-validator@v1.1.1
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.11, 3.13.0] # Our min and max supported Python versions
+        python-version: [3.11, 3.13] # Our min and max supported Python versions
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3

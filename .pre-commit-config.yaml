@@ -1,3 +1,4 @@
+---
 default_language_version:
   python: python3
 repos:
@@ -18,18 +19,22 @@ repos:
       - id: mixed-line-ending
       - id: trailing-whitespace
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.0
+    rev: v0.8.6
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.4.0
+    rev: v3.4.2
     hooks:
       - id: prettier
   - repo: https://github.com/psf/black-pre-commit-mirror
     rev: 24.10.0
     hooks:
       - id: black
+  - repo: https://github.com/adamchainz/blacken-docs
+    rev: 1.19.1
+    hooks:
+      - id: blacken-docs
   - repo: https://github.com/jumanjihouse/pre-commit-hooks
     rev: 3.0.0
     hooks:
@@ -40,10 +45,6 @@ repos:
       - id: codespell
         additional_dependencies: [".[toml]"]
         exclude_types: [jupyter]
-        exclude: |
-          (?x)^(
-            tests/cassettes.*
-          )$
   - repo: https://github.com/pappasam/toml-sort
     rev: v0.24.2
     hooks:
@@ -62,19 +63,19 @@ repos:
     hooks:
       - id: uv-lock
   - repo: https://github.com/jsh9/markdown-toc-creator
-    rev: 0.0.8
+    rev: 0.0.10
     hooks:
       - id: markdown-toc-creator
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+    rev: v1.14.1
     hooks:
       - id: mypy
         args: [--pretty, --ignore-missing-imports]
         additional_dependencies:
           - aiohttp
           - coredis
-          - fhaviary[llm]>=0.8.2 # Match pyproject.toml
-          - litellm>=1.44 # Match pyproject.toml
+          - fhaviary[llm]>=0.14.0 # Match pyproject.toml
+          - litellm>=1.44,<1.57.2 # Match pyproject.toml
           - limits
           - numpy
           - pydantic~=2.0,>=2.10.1,<2.10.2 # Match pyproject.toml
