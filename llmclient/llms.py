@@ -216,7 +216,7 @@ class LLMModel(ABC, BaseModel):
     async def call(
         self,
         messages: list[Message],
-        callbacks: list[Callable] | None = None,
+        callbacks: Iterable[Callable] | None = None,
         name: str | None = None,
         system_prompt: str | None = None,
     ) -> LLMResult:
@@ -289,7 +289,7 @@ class LLMModel(ABC, BaseModel):
     async def _run_chat(
         self,
         messages: list[Message],
-        callbacks: list[Callable] | None = None,
+        callbacks: Iterable[Callable] | None = None,
         name: str | None = None,
         system_prompt: str | None = default_system_prompt,
     ) -> LLMResult:
