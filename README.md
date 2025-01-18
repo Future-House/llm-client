@@ -2,6 +2,7 @@
 [![tests](https://github.com/Future-House/llm-client/actions/workflows/test.yaml/badge.svg?style=plastic)](https://github.com/Future-House/llm-client)
 [![PyPI version](https://badge.fury.io/py/fh-llm-client.svg?style=plastic)](https://badge.fury.io/py/fh-llm-client)
 
+# Quick Start
 
 # llm-client
 
@@ -17,3 +18,23 @@ A Python library for interacting with Large Language Models (LLMs) through a uni
 - Async-first design with robust error handling
 
 ## Installation
+
+## Usage
+
+### Rate limiting
+### Tool calling
+### Streaming
+### Structured output
+
+## Documentation
+
+### LLMs
+#### LLMModel
+#### LiteLLMModel
+
+### Embeddings
+
+
+## Contributing
+
+## License
