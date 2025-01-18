@@ -18,7 +18,6 @@ from inspect import isasyncgenfunction, signature
 from typing import (
     Any,
     ClassVar,
-    Self,
     TypeAlias,
     TypeVar,
     cast,
@@ -48,7 +47,7 @@ from llmclient.constants import (
     EXTRA_TOKENS_FROM_USER_ROLE,
     IS_PYTHON_BELOW_312,
 )
-from llmclient.cost_tracker import TrackedStreamWrapper, track_costs, track_costs_iter
+from llmclient.cost_tracker import track_costs, track_costs_iter
 from llmclient.exceptions import JSONSchemaValidationError
 from llmclient.prompts import default_system_prompt
 from llmclient.rate_limiter import GLOBAL_LIMITER
@@ -187,7 +186,7 @@ class LLMModel(ABC, BaseModel):
         """Return the completion as string and the number of tokens in the prompt and completion."""
         raise NotImplementedError
 
-    async def acomplete_iter(self, prompt: str) -> AsyncIterable[LLMResult]:
+    async def acomplete_iter(self, prompt: str) -> AsyncIterator[LLMResult]:
         """Return an async generator that yields completions.
 
         Only the last tuple will be non-zero.
@@ -196,11 +195,13 @@ class LLMModel(ABC, BaseModel):
         if False:  # type: ignore[unreachable]  # pylint: disable=using-constant-test
             yield  # Trick mypy: https://github.com/python/mypy/issues/5070#issuecomment-1050834495
 
-    async def achat(self, messages: list[Message]) -> LLMResult:
+    async def achat(self, messages: list[Message], **kwargs) -> list[LLMResult]:
         """Return the completion as string and the number of tokens in the prompt and completion."""
         raise NotImplementedError
 
-    async def achat_iter(self, messages: list[Message]) -> AsyncIterable[LLMResult]:
+    async def achat_iter(
+        self, messages: list[Message], **kwargs
+    ) -> AsyncIterator[LLMResult]:
         """Return an async generator that yields completions.
 
         Only the last tuple will be non-zero.
@@ -218,55 +219,97 @@ class LLMModel(ABC, BaseModel):
     def __str__(self) -> str:
         return f"{type(self).__name__} {self.name}"
 
+    # SEE: https://platform.openai.com/docs/api-reference/chat/create#chat-create-tool_choice
+    # > `none` means the model will not call any tool and instead generates a message.
+    # > `auto` means the model can pick between generating a message or calling one or more tools.
+    # > `required` means the model must call one or more tools.
+    NO_TOOL_CHOICE: ClassVar[str] = "none"
+    MODEL_CHOOSES_TOOL: ClassVar[str] = "auto"
+    TOOL_CHOICE_REQUIRED: ClassVar[str] = "required"
+    # None means we won't provide a tool_choice to the LLM API
+    UNSPECIFIED_TOOL_CHOICE: ClassVar[None] = None
+
     async def call(
         self,
         messages: list[Message],
-        callbacks: list[Callable] | None = None,
+        callbacks: Iterable[Callable] | None = None,
         name: str | None = None,
-        system_prompt: str | None = None,
-    ) -> LLMResult:
+        output_type: type[BaseModel] | TypeAdapter | JSONSchema | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
+        **chat_kwargs,
+    ) -> list[LLMResult]:
         """Call the LLM model with the given messages and configuration.
 
-        Args:
-            messages: A list of messages to send to the language model.
-            callbacks: A list of callback functions to execute
-                after receiving the response.
-            name: Optional name for the result.
-            system_prompt: System prompt to use, or None/empty string to not use one.
-                This should be passed in the messages if using a chat model
-            **chat_kwargs: Additional keyword arguments to pass to the chat function.
+        messages: A list of messages to send to the language model.
+        callbacks: A list of callback functions to execute
+        name: Optional name for the result.
+        output_type: The type of the output.
+        tools: A list of tools to use.
+        tool_choice: The tool choice to use.
 
-        Returns:
-            LLMResult object containing the result of the call.
+        Results: A list of LLMResult objects containing the result of the call.
+
+        Raises:
+            ValueError: If the LLM type is unknown.
         """
         if self.llm_type is None:
             self.llm_type = self.infer_llm_type()
 
+        n = chat_kwargs.get("n") or self.config.get("n", 1)
+
         if self.llm_type == "chat":
+            if n < 1:
+                raise ValueError("Number of completions (n) must be >= 1.")
             return await self._run_chat(
-                messages=messages,
-                callbacks=callbacks,
-                name=name,
+                messages,
+                callbacks,
+                name,
+                output_type,
+                tools,
+                tool_choice,
+                **chat_kwargs,
             )
 
         if self.llm_type == "completion":
+            if n > 1:
+                raise ValueError(
+                    "Multiple completion is not supported for completion models."
+                )
             # Build a static prompt from the messages ignoring roles
             prompt = "\n".join(m.content for m in messages if m.content)
-            return await self._run_completion(
-                prompt=prompt,
-                data={},
-                callbacks=callbacks,
-                name=name,
-                system_prompt=system_prompt,
-            )
+            return [
+                await self._run_completion(
+                    prompt=prompt,
+                    data={},
+                    callbacks=callbacks,
+                    name=name,
+                )
+            ]
 
         raise ValueError(f"Unknown llm_type {self.llm_type!r}.")
+
+    async def call_single(
+        self,
+        messages: list[Message],
+        callbacks: Iterable[Callable] | None = None,
+        name: str | None = None,
+        output_type: type[BaseModel] | TypeAdapter | JSONSchema | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
+    ) -> LLMResult:
+        results = await self.call(
+            messages, callbacks, name, output_type, tools, tool_choice, n=1
+        )
+        if not results:
+            raise ValueError("No results returned from call")
+        return results[0]
 
     async def run_prompt(
         self,
         prompt: str,
         data: dict,
-        callbacks: list[Callable] | None = None,
+        callbacks: Iterable[Callable] | None = None,
         name: str | None = None,
         system_prompt: str | None = default_system_prompt,
     ) -> LLMResult:
@@ -284,78 +327,145 @@ class LLMModel(ABC, BaseModel):
                     else [human_message_prompt]
                 )
             ]
-            return await self._run_chat(messages, callbacks, name, system_prompt)
+            results = await self._run_chat(messages, callbacks, name)
+            # prompt doesn't accept n>1, so we just return the first result
+            return results[0]
         if self.llm_type == "completion":
             return await self._run_completion(
                 prompt, data, callbacks, name, system_prompt
             )
         raise ValueError(f"Unknown llm_type {self.llm_type!r}.")
 
-    async def _run_chat(
+    async def _run_chat(  # noqa: C901
         self,
         messages: list[Message],
-        callbacks: list[Callable] | None = None,
+        callbacks: Iterable[Callable] | None = None,
         name: str | None = None,
-        system_prompt: str | None = default_system_prompt,
-    ) -> LLMResult:
+        output_type: type[BaseModel] | TypeAdapter | JSONSchema | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
+        **chat_kwargs,
+    ) -> list[LLMResult]:
         """Run a chat prompt.
 
-        Args:
-            messages: List of messages to use.
-            callbacks: Optional functions to call with each completion.
-            name: Optional name for the result.
-            system_prompt: System prompt to use, or None/empty string to not use one.
+        messages: List of messages to use.
+        callbacks: Optional functions to call with each completion. Defaults to None.
+        name: Optional name for the result. Defaults to None.
+        output_type: Type of the output. Defaults to None.
+        tools: List of tools to use. Defaults to None.
+        tool_choice: Tool choice to use. Defaults to TOOL_CHOICE_REQUIRED.
+        **chat_kwargs: Additional keyword arguments for the chat.
 
-        Returns:
-            Result of the chat.
+        Returns: list of LLMResults with the results of the completions.
+
+        Raises:
+            ValueError: If the model does not support JSON schema or if the number of completions (n) is less than 1.
+            NotImplementedError: If using tools with callbacks or multiple completions with callbacks is not supported.
         """
-        result = LLMResult(
-            model=self.name,
-            name=name,
-            prompt=messages,
-            prompt_count=(
-                sum(
-                    self.count_tokens(m.content)
-                    for m in messages
-                    if m.content is not None
+        # deal with tools
+        if tools:
+            chat_kwargs["tools"] = ToolsAdapter.dump_python(
+                tools, exclude_none=True, by_alias=True
+            )
+            if tool_choice is not None:
+                chat_kwargs["tool_choice"] = (
+                    {
+                        "type": "function",
+                        "function": {"name": tool_choice.info.name},
+                    }
+                    if isinstance(tool_choice, Tool)
+                    else tool_choice
                 )
-                + sum(self.count_tokens(m.role) for m in messages)
-            ),
-        )
+
+        # deal with specifying output type
+        if isinstance(output_type, Mapping):  # Use structured outputs
+            model_name: str = chat_kwargs.get("model") or self.name
+            if not litellm.supports_response_schema(model_name, None):
+                raise ValueError(f"Model {model_name} does not support JSON schema.")
+
+            chat_kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "strict": True,
+                    # SEE: https://platform.openai.com/docs/guides/structured-outputs#additionalproperties-false-must-always-be-set-in-objects
+                    "schema": dict(output_type) | {"additionalProperties": False},
+                    "name": output_type["title"],  # Required by OpenAI as of 12/3/2024
+                },
+            }
+        elif output_type is not None:  # Use JSON mode
+            if isinstance(output_type, TypeAdapter):
+                schema: str = json.dumps(output_type.json_schema())
+            else:
+                schema = json.dumps(output_type.model_json_schema())
+            schema_msg = f"Respond following this JSON schema:\n\n{schema}"
+            # Get the system prompt and its index, or the index to add it
+            i, system_prompt = next(
+                ((i, m) for i, m in enumerate(messages) if m.role == "system"),
+                (0, None),
+            )
+            messages = [
+                *messages[:i],
+                (
+                    system_prompt.append_text(schema_msg, inplace=False)
+                    if system_prompt
+                    else Message(role="system", content=schema_msg)
+                ),
+                *messages[i + 1 if system_prompt else i :],
+            ]
+            chat_kwargs["response_format"] = {"type": "json_object"}
+
+        messages = [
+            (
+                m
+                if not isinstance(m, ToolRequestMessage) or m.tool_calls
+                # OpenAI doesn't allow for empty tool_calls lists, so downcast empty
+                # ToolRequestMessage to Message here
+                else Message(role=m.role, content=m.content)
+            )
+            for m in messages
+        ]
+        results: list[LLMResult] = []
 
         start_clock = asyncio.get_running_loop().time()
         if callbacks is None:
-            completion = await self.achat(messages)
-            output = completion.text
+            results = await self.achat(messages, **chat_kwargs)
         else:
+            if tools:
+                raise NotImplementedError("Using tools with callbacks is not supported")
+            n = chat_kwargs.get("n") or self.config.get("n", 1)
+            if n > 1:
+                raise NotImplementedError(
+                    "Multiple completions with callbacks is not supported"
+                )
             sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
             async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
-            completions = await self.achat_iter(messages)  # type: ignore[misc]
+            stream_results = await self.achat_iter(messages, **chat_kwargs)  # type: ignore[misc]
             text_result = []
-            async for completion in completions:
-                if completion.text:
-                    if completion.seconds_to_first_token == 0:
-                        completion.seconds_to_first_token = (
+            async for result in stream_results:
+                if result.text:
+                    if result.seconds_to_first_token == 0:
+                        result.seconds_to_first_token = (
                             asyncio.get_running_loop().time() - start_clock
                         )
-                    text_result.append(completion.text)
+                    text_result.append(result.text)
                     await do_callbacks(
-                        async_callbacks, sync_callbacks, completion.text, name
+                        async_callbacks, sync_callbacks, result.text, name
                     )
-            output = "".join(text_result)
-        usage = completion.prompt_count, completion.completion_count
-        if sum(usage) > 0:
-            result.prompt_count, result.completion_count = usage
-        elif output:
-            result.completion_count = self.count_tokens(output)
-        result.text = output or ""
-        result.seconds_to_last_token = asyncio.get_running_loop().time() - start_clock
-        if self.llm_result_callback:
-            if is_coroutine_callable(self.llm_result_callback):
-                await self.llm_result_callback(result)  # type: ignore[misc]
-            else:
-                self.llm_result_callback(result)
-        return result
+                results.append(result)
+
+        for result in results:
+            usage = result.prompt_count, result.completion_count
+            if not sum(usage):
+                result.completion_count = self.count_tokens(result.text)
+            result.seconds_to_last_token = (
+                asyncio.get_running_loop().time() - start_clock
+            )
+            if self.llm_result_callback:
+                if is_coroutine_callable(self.llm_result_callback):
+                    await self.llm_result_callback(result)  # type: ignore[misc]
+                else:
+                    self.llm_result_callback(result)
+        return results
 
     async def _run_completion(
         self,
@@ -428,11 +538,11 @@ LLMModelOrChild = TypeVar("LLMModelOrChild", bound=LLMModel)
 
 def rate_limited(
     func: Callable[
-        [LLMModelOrChild, Any], Awaitable[LLMResult] | AsyncIterable[LLMResult]
+        [LLMModelOrChild, Any], Awaitable[LLMResult] | Awaitable[list[LLMResult]] | AsyncIterable[LLMResult]
     ],
 ) -> Callable[
-    [LLMModelOrChild, Any, Any],
-    Awaitable[LLMResult | AsyncIterator[LLMResult] | AsyncIterator[LLMModelOrChild]],
+    [LLMModelOrChild, Any],
+    Awaitable[LLMResult | list[LLMResult] | AsyncIterator[LLMResult] | AsyncIterator[LLMModelOrChild]],
 ]:
     """Decorator to rate limit relevant methods of an LLMModel."""
 
@@ -533,7 +643,12 @@ class LiteLLMModel(LLMModel):
                 "model_list": [
                     {
                         "model_name": data["name"],
-                        "litellm_params": {"model": data["name"]}
+                        "litellm_params": {
+                            "model": data["name"],
+                            "n": data["config"].get("n", 1),
+                            "temperature": data["config"].get("temperature", 0.1),
+                            "max_tokens": data["config"].get("max_tokens", 4096),
+                        }
                         | (
                             {}
                             if "gemini" not in data["name"]
@@ -642,41 +757,82 @@ class LiteLLMModel(LLMModel):
             )
 
     @rate_limited
-    async def achat(self, messages: list[Message]) -> LLMResult:  # type: ignore[override]
+    async def achat(self, messages: list[Message], **kwargs) -> list[LLMResult]:  # type: ignore[override]
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
-        response = await track_costs(self.router.acompletion)(self.name, prompts)
-        return LLMResult(
-            model=self.name,
-            text=cast(litellm.Choices, response.choices[0]).message.content,
-            prompt_count=response.usage.prompt_tokens,  # type: ignore[attr-defined]
-            completion_count=response.usage.completion_tokens,  # type: ignore[attr-defined]
+        completions = await track_costs(self.router.acompletion)(
+            self.name, prompts, **kwargs
         )
+        results: list[LLMResult] = []
+
+        # We are not streaming here, so we can cast to list[litellm.utils.Choices]
+        choices = cast(list[litellm.utils.Choices], completions.choices)
+        for completion in choices:
+            if completion.finish_reason == "tool_calls" or getattr(
+                completion.message, "tool_calls", None
+            ):
+                serialized_message = completion.message.model_dump()
+                serialized_message["tool_calls"] = (
+                    serialized_message.get("tool_calls") or []
+                )
+                output_messages: list[Message | ToolRequestMessage] = [
+                    ToolRequestMessage(**serialized_message)
+                ]
+            else:
+                output_messages = [Message(**completion.message.model_dump())]
+            results.append(
+                LLMResult(
+                    model=self.name,
+                    text=completion.message.content,
+                    prompt=messages,
+                    messages=output_messages,
+                    logprob=sum_logprobs(completion),
+                    prompt_count=completions.usage.prompt_tokens,  # type: ignore[attr-defined]
+                    completion_count=completions.usage.completion_tokens,  # type: ignore[attr-defined]
+                    system_fingerprint=completions.system_fingerprint,
+                )
+            )
+        return results
 
     @rate_limited
     async def achat_iter(  # type: ignore[override]
-        self, messages: list[Message]
-    ) -> AsyncIterable[LLMResult]:
+        self, messages: list[Message], **kwargs
+    ) -> AsyncIterator[LLMResult]:
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
-        completion = await track_costs_iter(self.router.acompletion)(
+        stream_completions = await track_costs_iter(self.router.acompletion)(
             self.name,
             prompts,
             stream=True,
             stream_options={"include_usage": True},
+            **kwargs,
         )
-        async for c in completion:
-            yield LLMResult(
-                model=self.name,
-                text=c.choices[0].delta.content or "",
-                prompt_count=0,
-                completion_count=0,
+        start_clock = asyncio.get_running_loop().time()
+        result = LLMResult(model=self.name, prompt=messages)
+        outputs = []
+        role = None
+        async for completion in stream_completions:
+            delta = completion.choices[0].delta
+            outputs.append(delta.content or "")
+            role = delta.role or role
+
+        text = "".join(outputs)
+        result = LLMResult(
+            model=self.name,
+            text=text,
+            prompt=messages,
+            messages=[Message(role=role, content=text)],
+            # TODO: Can we marginalize over all choices?
+            # logprob=sum_logprobs(completion),
+        )
+
+        if text:
+            result.seconds_to_first_token = (
+                asyncio.get_running_loop().time() - start_clock
             )
-        if hasattr(c, "usage") and hasattr(c.usage, "prompt_tokens"):
-            yield LLMResult(
-                model=self.name,
-                text="",
-                prompt_count=c.usage.prompt_tokens,
-                completion_count=c.usage.completion_tokens,
-            )
+        if hasattr(completion, "usage"):
+            result.prompt_count = completion.usage.prompt_tokens
+            result.completion_count = completion.usage.completion_tokens
+
+        yield result
 
     def infer_llm_type(self) -> str:
         if all(
@@ -697,296 +853,3 @@ class LiteLLMModel(LLMModel):
             model_name=self.name, acompletion=track_costs(self.router.acompletion)
         )
         return await tool_selector(*selection_args, **selection_kwargs)
-
-
-class MultipleCompletionLLMModel(BaseModel):
-    """Run n completions at once, all starting from the same messages."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    # this should keep the original model
-    # if fine-tuned, this should still refer to the base model
-    name: str = "unknown"
-    config: dict = Field(
-        default_factory=lambda: {
-            "model": "gpt-4o-mini",  # TODO: create a field validator
-            "temperature": 0.1,
-        },
-        description=(
-            "Configuration of the model:"
-            "model is the name of the llm model to use,"
-            "temperature is the sampling temperature, and"
-            "n is the number of completions to generate by default."
-        ),
-    )
-
-    @model_validator(mode="after")
-    def set_model_name(self) -> Self:
-        if (self.config.get("model") is None and self.name != "unknown") or (
-            self.name != "unknown" and "model" not in self.config
-        ):
-            self.config["model"] = self.name
-        elif "model" in self.config and self.name == "unknown":
-            self.name = self.config["model"]
-        # note we do not consider case where both are set
-        # because that could be true if the model is fine-tuned
-        return self
-
-    async def achat(
-        self, messages: Iterable[Message], **kwargs
-    ) -> litellm.ModelResponse:
-        return await track_costs(litellm.acompletion)(
-            messages=[m.model_dump(by_alias=True) for m in messages],
-            **(self.config | kwargs),
-        )
-
-    async def achat_iter(
-        self, messages: Iterable[Message], **kwargs
-    ) -> TrackedStreamWrapper:
-        return await track_costs_iter(litellm.acompletion)(
-            messages=[m.model_dump(by_alias=True) for m in messages],
-            stream=True,
-            stream_options={
-                "include_usage": True,  # Included to get prompt token counts
-            },
-            **(self.config | kwargs),
-        )
-
-    # SEE: https://platform.openai.com/docs/api-reference/chat/create#chat-create-tool_choice
-    # > `none` means the model will not call any tool and instead generates a message.
-    # > `auto` means the model can pick between generating a message or calling one or more tools.
-    # > `required` means the model must call one or more tools.
-    NO_TOOL_CHOICE: ClassVar[str] = "none"
-    MODEL_CHOOSES_TOOL: ClassVar[str] = "auto"
-    TOOL_CHOICE_REQUIRED: ClassVar[str] = "required"
-    # None means we won't provide a tool_choice to the LLM API
-    UNSPECIFIED_TOOL_CHOICE: ClassVar[None] = None
-
-    async def call(  # noqa: C901, PLR0915
-        self,
-        messages: list[Message],
-        callbacks: list[Callable] | None = None,
-        output_type: type[BaseModel] | TypeAdapter | JSONSchema | None = None,
-        tools: list[Tool] | None = None,
-        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
-        **chat_kwargs,
-    ) -> list[LLMResult]:
-        """
-        Call the LLM model with the given messages and configuration.
-
-        Args:
-            messages: A list of messages to send to the language model.
-            callbacks: A list of callback functions to execute after receiving the response.
-            output_type: The type of the output model.
-            tools: A list of tools to use during the call.
-            tool_choice: The tool or tool identifier to use.
-            **chat_kwargs: Additional keyword arguments to pass to the chat function.
-
-        Returns:
-            A list of LLMResult objects containing the results of the call.
-
-        Raises:
-            ValueError: If the number of completions (n) is invalid.
-        """
-        # add static configuration to kQwargs
-        chat_kwargs = self.config | chat_kwargs
-
-        start_clock = asyncio.get_running_loop().time()
-
-        # Deal with tools. Note OpenAI throws a 400 response if tools is empty:
-        # > Invalid 'tools': empty array. Expected an array with minimum length 1,
-        # > but got an empty array instead.
-        # So, circumvent this behavior if tools in (None, [])
-        if tools:
-            chat_kwargs["tools"] = ToolsAdapter.dump_python(
-                tools, exclude_none=True, by_alias=True
-            )
-            if tool_choice is not None:
-                chat_kwargs["tool_choice"] = (
-                    {
-                        "type": "function",
-                        "function": {"name": tool_choice.info.name},
-                    }
-                    if isinstance(tool_choice, Tool)
-                    else tool_choice
-                )
-
-        # deal with specifying output type
-        if isinstance(output_type, Mapping):  # Use structured outputs
-            model_name: str = chat_kwargs.get("model", "")
-            if not litellm.supports_response_schema(model_name, None):
-                raise ValueError(f"Model {model_name} does not support JSON schema.")
-
-            chat_kwargs["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "strict": True,
-                    # SEE: https://platform.openai.com/docs/guides/structured-outputs#additionalproperties-false-must-always-be-set-in-objects
-                    "schema": dict(output_type) | {"additionalProperties": False},
-                    "name": output_type["title"],  # Required by OpenAI as of 12/3/2024
-                },
-            }
-        elif output_type is not None:  # Use JSON mode
-            if isinstance(output_type, TypeAdapter):
-                schema: str = json.dumps(output_type.json_schema())
-            else:
-                schema = json.dumps(output_type.model_json_schema())
-            schema_msg = f"Respond following this JSON schema:\n\n{schema}"
-            # Get the system prompt and its index, or the index to add it
-            i, system_prompt = next(
-                ((i, m) for i, m in enumerate(messages) if m.role == "system"),
-                (0, None),
-            )
-            messages = [
-                *messages[:i],
-                (
-                    system_prompt.append_text(schema_msg, inplace=False)
-                    if system_prompt
-                    else Message(role="system", content=schema_msg)
-                ),
-                *messages[i + 1 if system_prompt else i :],
-            ]
-            chat_kwargs["response_format"] = {"type": "json_object"}
-
-        n = chat_kwargs.get("n", 1)  # number of completions
-        if n < 1:
-            raise ValueError("Number of completions (n) must be >= 1.")
-
-        prompt = [
-            (
-                m
-                if not isinstance(m, ToolRequestMessage) or m.tool_calls
-                # OpenAI doesn't allow for empty tool_calls lists, so downcast empty
-                # ToolRequestMessage to Message here
-                else Message(role=m.role, content=m.content)
-            )
-            for m in messages
-        ]
-        results: list[LLMResult] = []
-
-        if callbacks is None:
-            completion = await self.achat(prompt, **chat_kwargs)
-            if output_type is not None:
-                validate_json_completion(completion, output_type)
-
-            for choice in completion.choices:
-                if isinstance(choice, litellm.utils.StreamingChoices):
-                    raise NotImplementedError("Streaming is not yet supported.")
-
-                if (
-                    tools is not None  # Allows for empty tools list
-                    or choice.finish_reason == "tool_calls"
-                    or (getattr(choice.message, "tool_calls", None) is not None)
-                ):
-                    serialized_choice_message = choice.message.model_dump()
-                    serialized_choice_message["tool_calls"] = (
-                        serialized_choice_message.get("tool_calls") or []
-                    )
-                    output_messages: list[Message | ToolRequestMessage] = [
-                        ToolRequestMessage(**serialized_choice_message)
-                    ]
-                else:
-                    output_messages = [Message(**choice.message.model_dump())]
-
-                results.append(
-                    LLMResult(
-                        model=self.name,
-                        config=chat_kwargs,
-                        prompt=prompt,
-                        messages=output_messages,
-                        logprob=sum_logprobs(choice),
-                        system_fingerprint=completion.system_fingerprint,
-                        # Note that these counts are aggregated over all choices
-                        completion_count=completion.usage.completion_tokens,  # type: ignore[attr-defined,unused-ignore]
-                        prompt_count=completion.usage.prompt_tokens,  # type: ignore[attr-defined,unused-ignore]
-                    )
-                )
-        else:
-            if tools:
-                raise NotImplementedError("Using tools with callbacks is not supported")
-            if n > 1:
-                raise NotImplementedError(
-                    "Multiple completions with callbacks is not supported"
-                )
-            result = LLMResult(model=self.name, config=chat_kwargs, prompt=prompt)
-
-            sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
-            async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
-            stream_completion = await self.achat_iter(messages, **chat_kwargs)
-            if not all(
-                isinstance(choice, litellm.utils.StreamingChoices)
-                for choice in stream_completion
-            ):
-                raise ValueError("Expected a streaming completion.")
-            text_result = []
-            role = "assistant"
-
-            async for completion in stream_completion:
-                # We ensured every choice is a StreamingChoices object before. So, we can cast here.
-                choice = cast(litellm.utils.StreamingChoices, completion.choices[0])
-                delta = choice.delta
-                role = delta.role or role
-                if delta.content:
-                    s = delta.content
-                    if result.seconds_to_first_token == 0:
-                        result.seconds_to_first_token = (
-                            asyncio.get_running_loop().time() - start_clock
-                        )
-                    text_result.append(s)
-                    [await f(s) for f in async_callbacks]
-                    [f(s) for f in sync_callbacks]
-                if hasattr(choice, "usage"):
-                    result.prompt_count = choice.usage.prompt_tokens
-
-            output = "".join(text_result)
-            result.completion_count = litellm.token_counter(
-                model=self.name,
-                text=output,
-            )
-            # TODO: figure out how tools stream, and log probs
-            result.messages = [Message(role=role, content=output)]
-            results.append(result)
-
-        if not results:
-            # This happens in unit tests. We should probably not keep this block around
-            # long-term. Previously, we would emit an empty ToolRequestMessage if
-            # completion.choices were empty, so  I am replicating that here.
-            results.append(
-                LLMResult(
-                    model=self.name,
-                    config=chat_kwargs,
-                    prompt=prompt,
-                    messages=[ToolRequestMessage(tool_calls=[])],
-                )
-            )
-
-        end_clock = asyncio.get_running_loop().time()
-
-        for result in results:
-            # Manually update prompt count if not set, which can
-            # happen if the target model doesn't support 'include_usage'
-            if not result.prompt_count and result.messages:
-                result.prompt_count = litellm.token_counter(
-                    model=self.name,
-                    messages=[m.model_dump() for m in result.messages],
-                )
-
-            # update with server-side counts
-            result.seconds_to_last_token = end_clock - start_clock
-
-        return results
-
-    async def call_single(
-        self,
-        messages: list[Message],
-        callbacks: list[Callable] | None = None,
-        output_type: type[BaseModel] | TypeAdapter | None = None,
-        tools: list[Tool] | None = None,
-        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
-        **chat_kwargs,
-    ) -> LLMResult:
-        return (
-            await self.call(
-                messages, callbacks, output_type, tools, tool_choice, n=1, **chat_kwargs
-            )
-        )[0]
