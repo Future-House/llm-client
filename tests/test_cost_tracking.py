@@ -8,7 +8,7 @@ from aviary.core import Message
 from llmclient import cost_tracking_ctx
 from llmclient.cost_tracker import GLOBAL_COST_TRACKER
 from llmclient.embeddings import LiteLLMEmbeddingModel
-from llmclient.llms import CommonLLMNames, LiteLLMModel, MultipleCompletionLLMModel
+from llmclient.llms import CommonLLMNames, LiteLLMModel
 from llmclient.types import LLMResult
 
 from .conftest import VCR_DEFAULT_MATCH_ON
@@ -152,58 +152,4 @@ class TestLiteLLMModel:
                 data={"animal": "duck"},
                 system_prompt=None,
                 callbacks=[accum],
-            )
-
-
-class TestMultipleCompletionLLMModel:
-    async def call_model(
-        self, model: MultipleCompletionLLMModel, *args, **kwargs
-    ) -> list[LLMResult]:
-        return await model.call(*args, **kwargs)
-
-    @pytest.mark.parametrize(
-        "model_name", ["gpt-3.5-turbo", CommonLLMNames.ANTHROPIC_TEST.value]
-    )
-    @pytest.mark.asyncio
-    async def test_achat(self, model_name: str) -> None:
-        with cost_tracking_ctx():
-            with assert_costs_increased():
-                model = MultipleCompletionLLMModel(name=model_name)
-                await model.achat(
-                    messages=[
-                        Message(content="What are three things I should do today?"),
-                    ]
-                )
-
-            with assert_costs_increased():
-                async for _ in await model.achat_iter(
-                    messages=[
-                        Message(content="What are three things I should do today?"),
-                    ]
-                ):
-                    pass
-
-    @pytest.mark.parametrize("model_name", [CommonLLMNames.OPENAI_TEST.value])
-    @pytest.mark.asyncio
-    @pytest.mark.vcr
-    async def test_text_image_message(self, model_name: str) -> None:
-        with cost_tracking_ctx(), assert_costs_increased():
-            model = MultipleCompletionLLMModel(name=model_name, config={"n": 2})
-
-            # An RGB image of a red square
-            image = np.zeros((32, 32, 3), dtype=np.uint8)
-            # (255 red, 0 green, 0 blue) is maximum red in RGB
-            image[:] = [255, 0, 0]
-
-            await self.call_model(
-                model,
-                messages=[
-                    Message.create_message(
-                        text=(
-                            "What color is this square? Respond only with the color"
-                            " name."
-                        ),
-                        images=image,
-                    )
-                ],
             )

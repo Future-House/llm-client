@@ -13,7 +13,7 @@ from llmclient.exceptions import JSONSchemaValidationError
 from llmclient.llms import (
     CommonLLMNames,
     LiteLLMModel,
-    MultipleCompletionLLMModel,
+    # MultipleCompletionLLMModel,
     validate_json_completion,
 )
 from llmclient.types import LLMResult
@@ -21,7 +21,7 @@ from tests.conftest import VCR_DEFAULT_MATCH_ON
 
 
 class TestLiteLLMModel:
-    @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
+    # @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.parametrize(
         "config",
         [
@@ -67,12 +67,19 @@ class TestLiteLLMModel:
             Message(role="user", content="What is the meaning of the universe?"),
         ]
         results = await llm.call(messages)
-        assert isinstance(results.prompt, list)
-        assert isinstance(results.prompt[1], Message)
-        assert all(isinstance(msg, Message) for msg in results.prompt)
-        assert len(results.prompt) == 2
-        assert results.prompt[1].content
-        assert results.text
+        assert isinstance(results, list)
+
+        result = results[0]
+        assert isinstance(result, LLMResult)
+        assert isinstance(result.prompt, list)
+        assert isinstance(result.prompt[1], Message)
+        assert all(isinstance(msg, Message) for msg in result.prompt)
+        assert len(result.prompt) == 2  # role + user messages
+        assert result.prompt[1].content
+        assert result.text
+
+        result = await llm.call_single(messages)
+        assert isinstance(result, LLMResult)
 
     # @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.asyncio
@@ -91,34 +98,40 @@ class TestLiteLLMModel:
             ),
         ]  # TODO: It's not decoding the image. It's trying to guess the color from the encoded image string.
         results = await llm.call(messages)
-        assert isinstance(results.prompt, list)
-        assert all(isinstance(msg, Message) for msg in results.prompt)
-        assert isinstance(results.prompt[1], Message)
-        assert len(results.prompt) == 2
-        assert results.prompt[1].content
-        assert isinstance(results.text, str)
-        assert "red" in results.text.lower()
-        assert results.seconds_to_last_token > 0
-        assert results.prompt_count > 0
-        assert results.completion_count > 0
-        assert results.cost > 0
+        assert isinstance(results, list)
+        for result in results:
+            assert isinstance(result, LLMResult)
+            assert isinstance(result.prompt, list)
+            assert all(isinstance(msg, Message) for msg in result.prompt)
+            assert isinstance(result.prompt[1], Message)
+            assert len(result.prompt) == 2
+            assert result.prompt[1].content
+            assert isinstance(result.text, str)
+            assert "red" in result.text.lower()
+            assert result.seconds_to_last_token > 0
+            assert result.prompt_count > 0
+            assert result.completion_count > 0
+            assert result.cost > 0
 
         # Also test with a callback
         async def ac(x) -> None:
             pass
 
         results = await llm.call(messages, [ac])
-        assert isinstance(results.prompt, list)
-        assert all(isinstance(msg, Message) for msg in results.prompt)
-        assert isinstance(results.prompt[1], Message)
-        assert len(results.prompt) == 2
-        assert results.prompt[1].content
-        assert isinstance(results.text, str)
-        assert "red" in results.text.lower()
-        assert results.seconds_to_last_token > 0
-        assert results.prompt_count > 0
-        assert results.completion_count > 0
-        assert results.cost > 0
+        assert isinstance(results, list)
+        for result in results:
+            assert isinstance(result, LLMResult)
+            assert isinstance(result.prompt, list)
+            assert all(isinstance(msg, Message) for msg in result.prompt)
+            assert isinstance(result.prompt[1], Message)
+            assert len(result.prompt) == 2
+            assert result.prompt[1].content
+            assert isinstance(result.text, str)
+            assert "red" in result.text.lower()
+            assert result.seconds_to_last_token > 0
+            assert result.prompt_count > 0
+            assert result.completion_count > 0
+            assert result.cost > 0
 
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.parametrize(
@@ -223,7 +236,7 @@ class TestLiteLLMModel:
             side_effect=litellm.Router.atext_completion,
             autospec=True,
         ) as mock_atext_completion:
-            completion = await llm.acomplete("Please tell me a story")  # type: ignore[call-arg]
+            completion = await llm.acomplete("Please tell me a story")
         if bypassed_router:
             mock_atext_completion.assert_not_awaited()
         else:
@@ -269,14 +282,12 @@ class DummyOutputSchema(BaseModel):
         return f"{self.name}, {self.age}"
 
 
-class TestMultipleCompletionLLMModel:
+class TestMultipleCompletion:
     NUM_COMPLETIONS: ClassVar[int] = 2
     DEFAULT_CONFIG: ClassVar[dict] = {"n": NUM_COMPLETIONS}
-    MODEL_CLS: ClassVar[type[MultipleCompletionLLMModel]] = MultipleCompletionLLMModel
+    MODEL_CLS: ClassVar[type[LiteLLMModel]] = LiteLLMModel
 
-    async def call_model(
-        self, model: MultipleCompletionLLMModel, *args, **kwargs
-    ) -> list[LLMResult]:
+    async def call_model(self, model: LiteLLMModel, *args, **kwargs) -> list[LLMResult]:
         return await model.call(*args, **kwargs)
 
     @pytest.mark.parametrize(
@@ -284,25 +295,32 @@ class TestMultipleCompletionLLMModel:
     )
     @pytest.mark.asyncio
     async def test_achat(self, model_name: str) -> None:
-        model = MultipleCompletionLLMModel(name=model_name)
-        response = await model.achat(
-            messages=[
-                Message(content="What are three things I should do today?"),
-            ]
-        )
+        model = self.MODEL_CLS(name=model_name)
+        messages = [
+            Message(content="What are three things I should do today?"),
+        ]
+        response = await model.achat(messages)
 
-        assert len(response.choices) == 1
+        assert isinstance(response, list)
+        assert len(response) == 1
+        assert isinstance(response[0], LLMResult)
 
-        # Check we can iterate through the response
-        async for completion in await model.achat_iter(
-            messages=[
-                Message(content="What are three things I should do today?"),
-            ]
-        ):
-            assert len(completion.choices) == 1
+    @pytest.mark.parametrize(
+        "model_name", ["gpt-3.5-turbo", CommonLLMNames.ANTHROPIC_TEST.value]
+    )
+    @pytest.mark.asyncio
+    async def test_achat_iter(self, model_name: str) -> None:
+        model = self.MODEL_CLS(name=model_name)
+        messages = [Message(content="What are three things I should do today?")]
+        responses = await model.achat_iter(messages)
+        assert isinstance(responses, list)
+
+        for response in responses:
+            assert isinstance(response, LLMResult)
+            assert isinstance(response.prompt, list)
 
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
-    @pytest.mark.parametrize("model_name", ["gpt-3.5-turbo"])
+    @pytest.mark.parametrize("model_name", ["gpt-4o"])
     @pytest.mark.asyncio
     async def test_model(self, model_name: str) -> None:
         # Make model_name an arg so that TestLLMModel can parametrize it
