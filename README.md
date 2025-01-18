@@ -1,26 +1,19 @@
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)]()
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg?style=plastic)]()
+[![tests](https://github.com/Future-House/llm-client/actions/workflows/test.yaml/badge.svg?style=plastic)](https://github.com/Future-House/llm-client)
+[![PyPI version](https://badge.fury.io/py/fh-llm-client.svg?style=plastic)](https://badge.fury.io/py/fh-llm-client)
 
-<!-- [![tests](https://github.com/Future-House/llm-client/actions/workflows/test.yaml/badge.svg)](https://github.com/Future-House/llm-client) -->
-
-[![PyPI version](https://badge.fury.io/py/fh-llm-client.svg)](https://badge.fury.io/py/fh-llm-client)
 
 # llm-client
 
-Central FutureHouse LLM client library.
+A Python library for interacting with Large Language Models (LLMs) through a unified interface.
 
-## Quick Start
+## Features
 
-```
-$ pip install -e .
-$ uv sync && uv run pytest -n auto
-```
+- Unified interface for multiple LLM providers through LiteLLM integration
+- Built-in rate limiting and cost tracking
+- Support for streaming responses
+- Structured output validation using Pydantic models or JSON schemas
+- Tool/function calling capabilities
+- Async-first design with robust error handling
 
-## Clients
-
-- LLMModel
-- LLMResult
-
-## Examples
-
-- [PaperQA](https://github.com/Future-House/paper-qa/compare/main...llm-result-client)
-- [LDP](https://github.com/Future-House/ldp/compare/main...llm-result-client)
+## Installation
