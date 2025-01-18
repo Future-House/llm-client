@@ -261,7 +261,7 @@ class LLMModel(ABC, BaseModel):
         self,
         prompt: str,
         data: dict,
-        callbacks: list[Callable] | None = None,
+        callbacks: Iterable[Callable] | None = None,
         name: str | None = None,
         system_prompt: str | None = default_system_prompt,
     ) -> LLMResult:
