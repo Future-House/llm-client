@@ -538,11 +538,17 @@ LLMModelOrChild = TypeVar("LLMModelOrChild", bound=LLMModel)
 
 def rate_limited(
     func: Callable[
-        [LLMModelOrChild, Any], Awaitable[LLMResult] | Awaitable[list[LLMResult]] | AsyncIterable[LLMResult]
+        [LLMModelOrChild, Any],
+        Awaitable[LLMResult] | Awaitable[list[LLMResult]] | AsyncIterable[LLMResult],
     ],
 ) -> Callable[
     [LLMModelOrChild, Any],
-    Awaitable[LLMResult | list[LLMResult] | AsyncIterator[LLMResult] | AsyncIterator[LLMModelOrChild]],
+    Awaitable[
+        LLMResult
+        | list[LLMResult]
+        | AsyncIterator[LLMResult]
+        | AsyncIterator[LLMModelOrChild]
+    ],
 ]:
     """Decorator to rate limit relevant methods of an LLMModel."""
 

@@ -1,5 +1,6 @@
 import pathlib
 import pickle
+from collections.abc import AsyncIterator
 from typing import Any, ClassVar
 from unittest.mock import Mock, patch
 
@@ -313,9 +314,9 @@ class TestMultipleCompletion:
         model = self.MODEL_CLS(name=model_name)
         messages = [Message(content="What are three things I should do today?")]
         responses = await model.achat_iter(messages)
-        assert isinstance(responses, list)
+        assert isinstance(responses, AsyncIterator)
 
-        for response in responses:
+        async for response in responses:
             assert isinstance(response, LLMResult)
             assert isinstance(response.prompt, list)
 
