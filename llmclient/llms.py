@@ -157,9 +157,13 @@ async def do_callbacks(
     completion: str,
     name: str | None,
 ) -> None:
-    for f in async_callbacks:
-        args, kwargs = prepare_args(f, completion, name)
-        await f(*args, **kwargs)
+    await asyncio.gather(
+        *(
+            f(*args, **kwargs)
+            for f in async_callbacks
+            for args, kwargs in [prepare_args(f, completion, name)]
+        )
+    )
     for f in sync_callbacks:
         args, kwargs = prepare_args(f, completion, name)
         f(*args, **kwargs)

@@ -62,7 +62,7 @@ class LLMResult(BaseModel):
         default=None,
         description="Optional prompt or list of serialized prompts.",
     )
-    text: str | None = ""
+    text: str | None = None
     messages: list[Message] | None = Field(
         default=None, description="Messages received from the LLM."
     )
