@@ -32,6 +32,7 @@ from aviary.core import (
     ToolSelector,
     is_coroutine_callable,
 )
+from litellm.types.utils import ModelResponse, ModelResponseStream
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -369,23 +370,19 @@ LLMModelOrChild = TypeVar("LLMModelOrChild", bound=LLMModel)
 def rate_limited(
     func: Callable[
         [LLMModelOrChild, Any],
-        Awaitable[LLMResult] | Awaitable[list[LLMResult]] | AsyncIterable[LLMResult],
+        Awaitable[ModelResponse | ModelResponseStream | list[LLMResult]]
+        | AsyncIterable[LLMResult],
     ],
 ) -> Callable[
     [LLMModelOrChild, Any],
-    Awaitable[
-        LLMResult
-        | list[LLMResult]
-        | AsyncIterator[LLMResult]
-        | AsyncIterator[LLMModelOrChild]
-    ],
+    Awaitable[list[LLMResult] | AsyncIterator[LLMResult]],
 ]:
     """Decorator to rate limit relevant methods of an LLMModel."""
 
     @functools.wraps(func)
     async def wrapper(
         self: LLMModelOrChild, *args: Any, **kwargs: Any
-    ) -> LLMResult | AsyncIterator[LLMResult] | AsyncIterator[LLMModelOrChild]:
+    ) -> list[LLMResult] | AsyncIterator[LLMResult]:
         if not hasattr(self, "check_rate_limit"):
             raise NotImplementedError(
                 f"Model {self.name} must have a `check_rate_limit` method."
@@ -404,7 +401,7 @@ def rate_limited(
         # portion before yielding
         if isasyncgenfunction(func):
 
-            async def rate_limited_generator() -> AsyncGenerator[LLMModelOrChild, None]:
+            async def rate_limited_generator() -> AsyncGenerator[LLMResult, None]:
                 async for item in func(self, *args, **kwargs):
                     token_count = 0
                     if isinstance(item, LLMResult):
@@ -586,7 +583,7 @@ class LiteLLMModel(LLMModel):
     @rate_limited
     async def acompletion_iter(  # type: ignore[override]
         self, messages: list[Message], **kwargs
-    ) -> AsyncIterator[LLMResult]:
+    ) -> AsyncGenerator[LLMResult]:
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
         stream_completions = await track_costs_iter(self.router.acompletion)(
             self.name,
