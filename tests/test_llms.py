@@ -81,7 +81,7 @@ class TestLiteLLMModel:
         result = await llm.call_single(messages)
         assert isinstance(result, LLMResult)
 
-    @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
+    # @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON])
     @pytest.mark.asyncio
     async def test_call_w_figure(self) -> None:
         llm = LiteLLMModel(name=CommonLLMNames.OPENAI_BASELINE.value)
