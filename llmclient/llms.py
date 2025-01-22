@@ -415,8 +415,8 @@ def rate_limited(
 
         result = await func(self, *args, **kwargs)  # type: ignore[misc]
 
-        if func.__name__ == "acompletion" and isinstance(result, LLMResult):
-            await self.check_rate_limit(result.completion_count)
+        if func.__name__ == "acompletion" and isinstance(result, list):
+            await self.check_rate_limit(sum(r.completion_count for r in result))
         return result
 
     return wrapper
