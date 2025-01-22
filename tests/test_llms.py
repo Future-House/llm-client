@@ -163,7 +163,7 @@ class TestLiteLLMModel:
         ],
     )
     @pytest.mark.asyncio
-    async def test_run_prompt(self, config: dict[str, Any]) -> None:
+    async def test_call_single(self, config: dict[str, Any]) -> None:
         llm = LiteLLMModel(name="gpt-4o-mini", config=config)
 
         outputs = []
@@ -171,10 +171,16 @@ class TestLiteLLMModel:
         def accum(x) -> None:
             outputs.append(x)
 
-        completion = await llm.run_prompt(
-            prompt="The {animal} says",
-            data={"animal": "duck"},
-            system_prompt=None,
+        prompt = "The {animal} says"
+        data = {"animal": "duck"}
+        system_prompt = "You are a helpful assistant."
+        messages = [
+            Message(role="system", content=system_prompt),
+            Message(role="user", content=prompt.format(**data)),
+        ]
+
+        completion = await llm.call_single(
+            messages=messages,
             callbacks=[accum],
         )
         assert completion.model == "gpt-4o-mini"
@@ -184,10 +190,8 @@ class TestLiteLLMModel:
         assert str(completion) == "".join(outputs)
         assert completion.cost > 0
 
-        completion = await llm.run_prompt(
-            prompt="The {animal} says",
-            data={"animal": "duck"},
-            system_prompt=None,
+        completion = await llm.call_single(
+            messages=messages,
         )
         assert completion.seconds_to_last_token > 0
         assert completion.cost > 0
@@ -196,10 +200,8 @@ class TestLiteLLMModel:
         async def ac(x) -> None:
             pass
 
-        completion = await llm.run_prompt(
-            prompt="The {animal} says",
-            data={"animal": "duck"},
-            system_prompt=None,
+        completion = await llm.call_single(
+            messages=messages,
             callbacks=[accum, ac],
         )
         assert completion.cost > 0

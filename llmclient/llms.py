@@ -309,37 +309,6 @@ class LLMModel(ABC, BaseModel):
             raise ValueError("No results returned from call")
         return results[0]
 
-    async def run_prompt(
-        self,
-        prompt: str,
-        data: dict,
-        callbacks: Iterable[Callable] | None = None,
-        name: str | None = None,
-        system_prompt: str | None = default_system_prompt,
-    ) -> LLMResult:
-        messages = None  # using prompt, not messages
-        if self.llm_type is None:
-            self.llm_type = self.infer_llm_type()
-
-        if self.llm_type == "chat":
-            human_message_prompt = {"role": "user", "content": prompt}
-            messages = [
-                Message(role=m["role"], content=m["content"].format(**data))
-                for m in (
-                    [{"role": "system", "content": system_prompt}, human_message_prompt]
-                    if system_prompt
-                    else [human_message_prompt]
-                )
-            ]
-            results = await self._run_chat(messages, callbacks, name)
-            # prompt doesn't accept n>1, so we just return the first result
-            return results[0]
-        if self.llm_type == "completion":
-            return await self._run_completion(
-                prompt, data, callbacks, name, system_prompt
-            )
-        raise ValueError(f"Unknown llm_type {self.llm_type!r}.")
-
     async def _run_chat(  # noqa: C901
         self,
         messages: list[Message],

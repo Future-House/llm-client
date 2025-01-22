@@ -137,7 +137,7 @@ class TestLiteLLMModel:
         ],
     )
     @pytest.mark.asyncio
-    async def test_run_prompt(self, config: dict[str, Any]) -> None:
+    async def test_call_single(self, config: dict[str, Any]) -> None:
         with cost_tracking_ctx(), assert_costs_increased():
             llm = LiteLLMModel(name="gpt-4o-mini", config=config)
 
@@ -146,9 +146,15 @@ class TestLiteLLMModel:
             def accum(x) -> None:
                 outputs.append(x)
 
-            await llm.run_prompt(
-                prompt="The {animal} says",
-                data={"animal": "duck"},
-                system_prompt=None,
+            prompt = "The {animal} says"
+            data = {"animal": "duck"}
+            system_prompt = "You are a helpful assistant."
+            messages = [
+                Message(role="system", content=system_prompt),
+                Message(role="user", content=prompt.format(**data)),
+            ]
+
+            await llm.call_single(
+                messages=messages,
                 callbacks=[accum],
             )

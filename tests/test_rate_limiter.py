@@ -152,7 +152,7 @@ async def time_n_llm_methods(
 
 @pytest.mark.parametrize("llm_config_w_rate_limits", LLM_CONFIG_W_RATE_LIMITS)
 @pytest.mark.asyncio
-async def test_rate_limit_on_run_prompt(
+async def test_rate_limit_on_call_single(
     llm_config_w_rate_limits: dict[str, Any],
 ) -> None:
 
@@ -163,13 +163,19 @@ async def test_rate_limit_on_run_prompt(
     def accum(x) -> None:
         outputs.append(x)
 
+    prompt = "The {animal} says"
+    data = {"animal": "duck"}
+    system_prompt = "You are a helpful assistant."
+    messages = [
+        Message(role="system", content=system_prompt),
+        Message(role="user", content=prompt.format(**data)),
+    ]
+
     estimated_tokens_per_second = await time_n_llm_methods(
         llm,
-        "run_prompt",
+        "call_single",
         3,
-        prompt="The {animal} says",
-        data={"animal": "duck"},
-        system_prompt=None,
+        messages=messages,
         callbacks=[accum],
     )
 
@@ -191,12 +197,10 @@ async def test_rate_limit_on_run_prompt(
 
     estimated_tokens_per_second = await time_n_llm_methods(
         llm,
-        "run_prompt",
+        "call_single",
         3,
         use_gather=True,
-        prompt="The {animal} says",
-        data={"animal": "duck"},
-        system_prompt=None,
+        messages=messages,
         callbacks=[accum2],
     )
 
