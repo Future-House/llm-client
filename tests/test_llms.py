@@ -96,7 +96,7 @@ class TestLiteLLMModel:
                 text="What color is this square? Show me your chain of reasoning.",
                 images=image,
             ),
-        ]  # TODO: It's not decoding the image. It's trying to guess the color from the encoded image string.
+        ]
         results = await llm.call(messages)
         assert isinstance(results, list)
         for result in results:

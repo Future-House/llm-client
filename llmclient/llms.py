@@ -413,7 +413,8 @@ def rate_limited(
 
             return rate_limited_generator()
 
-        result = await func(self, *args, **kwargs)  # type: ignore[misc]
+        # We checked isasyncgenfunction above, so this must be a Awaitable
+        result = await cast(Awaitable[Any], func(self, *args, **kwargs))
 
         if func.__name__ == "acompletion" and isinstance(result, list):
             await self.check_rate_limit(sum(r.completion_count for r in result))
