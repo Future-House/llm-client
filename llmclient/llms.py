@@ -161,7 +161,7 @@ async def do_callbacks(
         *(
             f(*args, **kwargs)
             for f in async_callbacks
-            for args, kwargs in [prepare_args(f, completion, name)]
+            for args, kwargs in (prepare_args(f, completion, name),)
         )
     )
     for f in sync_callbacks:
