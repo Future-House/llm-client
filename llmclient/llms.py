@@ -14,7 +14,7 @@ from collections.abc import (
     Mapping,
 )
 from enum import StrEnum
-from inspect import isasyncgenfunction, signature
+from inspect import isasyncgenfunction, isawaitable, signature
 from typing import (
     Any,
     ClassVar,
@@ -174,9 +174,7 @@ class LLMModel(ABC, BaseModel):
 
     llm_type: str | None = None
     name: str
-    llm_result_callback: (
-        Callable[[LLMResult], None] | Callable[[LLMResult], Awaitable[None]] | None
-    ) = Field(
+    llm_result_callback: Callable[[LLMResult], Any | Awaitable[Any]] | None = Field(
         default=None,
         description=(
             "An async callback that will be executed on each"
@@ -433,11 +431,11 @@ class LLMModel(ABC, BaseModel):
             result.seconds_to_last_token = (
                 asyncio.get_running_loop().time() - start_clock
             )
+
             if self.llm_result_callback:
-                if is_coroutine_callable(self.llm_result_callback):
-                    await self.llm_result_callback(result)  # type: ignore[misc]
-                else:
-                    self.llm_result_callback(result)
+                possibly_awaitable_result = self.llm_result_callback(result)
+                if isawaitable(possibly_awaitable_result):
+                    await possibly_awaitable_result
         return results
 
     async def _run_completion(
@@ -499,10 +497,9 @@ class LLMModel(ABC, BaseModel):
         result.text = output or ""
         result.seconds_to_last_token = asyncio.get_running_loop().time() - start_clock
         if self.llm_result_callback:
-            if is_coroutine_callable(self.llm_result_callback):
-                await self.llm_result_callback(result)  # type: ignore[misc]
-            else:
-                self.llm_result_callback(result)
+            possibly_awaitable_result = self.llm_result_callback(result)
+            if isawaitable(possibly_awaitable_result):
+                await possibly_awaitable_result
         return result
 
 
