@@ -44,12 +44,10 @@ from pydantic import (
 from llmclient.constants import (
     CHARACTERS_PER_TOKEN_ASSUMPTION,
     DEFAULT_VERTEX_SAFETY_SETTINGS,
-    EXTRA_TOKENS_FROM_USER_ROLE,
     IS_PYTHON_BELOW_312,
 )
 from llmclient.cost_tracker import track_costs, track_costs_iter
 from llmclient.exceptions import JSONSchemaValidationError
-from llmclient.prompts import default_system_prompt
 from llmclient.rate_limiter import GLOBAL_LIMITER
 from llmclient.types import LLMResult
 from llmclient.utils import get_litellm_retrying_config
@@ -80,7 +78,7 @@ class CommonLLMNames(StrEnum):
     # Use these in unit testing
     OPENAI_TEST = "gpt-4o-mini-2024-07-18"  # Cheap, fast, and not OpenAI's cutting edge
     ANTHROPIC_TEST = (
-        "claude-3-haiku-20240307"  # Cheap, fast, and not Anthropic's cutting edge
+        "claude-3-5-haiku-20241022"  # Cheap, fast, and not Anthropic's cutting edge
     )
 
 
@@ -184,24 +182,11 @@ class LLMModel(ABC, BaseModel):
     )
     config: dict = Field(default_factory=dict)
 
-    async def acomplete(self, prompt: str) -> LLMResult:
+    async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:
         """Return the completion as string and the number of tokens in the prompt and completion."""
         raise NotImplementedError
 
-    async def acomplete_iter(self, prompt: str) -> AsyncIterator[LLMResult]:
-        """Return an async generator that yields completions.
-
-        Only the last tuple will be non-zero.
-        """
-        raise NotImplementedError
-        if False:  # type: ignore[unreachable]  # pylint: disable=using-constant-test
-            yield  # Trick mypy: https://github.com/python/mypy/issues/5070#issuecomment-1050834495
-
-    async def achat(self, messages: list[Message], **kwargs) -> list[LLMResult]:
-        """Return the completion as string and the number of tokens in the prompt and completion."""
-        raise NotImplementedError
-
-    async def achat_iter(
+    async def acompletion_iter(
         self, messages: list[Message], **kwargs
     ) -> AsyncIterator[LLMResult]:
         """Return an async generator that yields completions.
@@ -211,9 +196,6 @@ class LLMModel(ABC, BaseModel):
         raise NotImplementedError
         if False:  # type: ignore[unreachable]  # pylint: disable=using-constant-test
             yield  # Trick mypy: https://github.com/python/mypy/issues/5070#issuecomment-1050834495
-
-    def infer_llm_type(self) -> str:
-        return "completion"
 
     def count_tokens(self, text: str) -> int:
         return len(text) // 4  # gross approximation
@@ -231,7 +213,7 @@ class LLMModel(ABC, BaseModel):
     # None means we won't provide a tool_choice to the LLM API
     UNSPECIFIED_TOOL_CHOICE: ClassVar[None] = None
 
-    async def call(
+    async def call(  # noqa: C901, PLR0915
         self,
         messages: list[Message],
         callbacks: Iterable[Callable] | None = None,
@@ -255,84 +237,10 @@ class LLMModel(ABC, BaseModel):
         Raises:
             ValueError: If the LLM type is unknown.
         """
-        if self.llm_type is None:
-            self.llm_type = self.infer_llm_type()
-
         n = chat_kwargs.get("n") or self.config.get("n", 1)
+        if n < 1:
+            raise ValueError("Number of completions (n) must be >= 1.")
 
-        if self.llm_type == "chat":
-            if n < 1:
-                raise ValueError("Number of completions (n) must be >= 1.")
-            return await self._run_chat(
-                messages,
-                callbacks,
-                name,
-                output_type,
-                tools,
-                tool_choice,
-                **chat_kwargs,
-            )
-
-        if self.llm_type == "completion":
-            if n > 1:
-                raise ValueError(
-                    "Multiple completion is not supported for completion models."
-                )
-            # Build a static prompt from the messages ignoring roles
-            prompt = "\n".join(m.content for m in messages if m.content)
-            return [
-                await self._run_completion(
-                    prompt=prompt,
-                    data={},
-                    callbacks=callbacks,
-                    name=name,
-                )
-            ]
-
-        raise ValueError(f"Unknown llm_type {self.llm_type!r}.")
-
-    async def call_single(
-        self,
-        messages: list[Message],
-        callbacks: Iterable[Callable] | None = None,
-        name: str | None = None,
-        output_type: type[BaseModel] | TypeAdapter | JSONSchema | None = None,
-        tools: list[Tool] | None = None,
-        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
-    ) -> LLMResult:
-        results = await self.call(
-            messages, callbacks, name, output_type, tools, tool_choice, n=1
-        )
-        if not results:
-            raise ValueError("No results returned from call")
-        return results[0]
-
-    async def _run_chat(  # noqa: C901
-        self,
-        messages: list[Message],
-        callbacks: Iterable[Callable] | None = None,
-        name: str | None = None,
-        output_type: type[BaseModel] | TypeAdapter | JSONSchema | None = None,
-        tools: list[Tool] | None = None,
-        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
-        **chat_kwargs,
-    ) -> list[LLMResult]:
-        """Run a chat prompt.
-
-        messages: List of messages to use.
-        callbacks: Optional functions to call with each completion. Defaults to None.
-        name: Optional name for the result. Defaults to None.
-        output_type: Type of the output. Defaults to None.
-        tools: List of tools to use. Defaults to None.
-        tool_choice: Tool choice to use. Defaults to TOOL_CHOICE_REQUIRED.
-        **chat_kwargs: Additional keyword arguments for the chat.
-
-        Returns: list of LLMResults with the results of the completions.
-
-        Raises:
-            ValueError: If the model does not support JSON schema or if the number of completions (n) is less than 1.
-            NotImplementedError: If using tools with callbacks or multiple completions with callbacks is not supported.
-        """
         # deal with tools
         if tools:
             chat_kwargs["tools"] = ToolsAdapter.dump_python(
@@ -399,7 +307,7 @@ class LLMModel(ABC, BaseModel):
 
         start_clock = asyncio.get_running_loop().time()
         if callbacks is None:
-            results = await self.achat(messages, **chat_kwargs)
+            results = await self.acompletion(messages, **chat_kwargs)
         else:
             if tools:
                 raise NotImplementedError("Using tools with callbacks is not supported")
@@ -410,7 +318,7 @@ class LLMModel(ABC, BaseModel):
                 )
             sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
             async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
-            stream_results = await self.achat_iter(messages, **chat_kwargs)  # type: ignore[misc]
+            stream_results = await self.acompletion_iter(messages, **chat_kwargs)  # type: ignore[misc]
             text_result = []
             async for result in stream_results:
                 if result.text:
@@ -438,69 +346,21 @@ class LLMModel(ABC, BaseModel):
                     await possibly_awaitable_result
         return results
 
-    async def _run_completion(
+    async def call_single(
         self,
-        prompt: str,
-        data: dict,
+        messages: list[Message],
         callbacks: Iterable[Callable] | None = None,
         name: str | None = None,
-        system_prompt: str | None = default_system_prompt,
+        output_type: type[BaseModel] | TypeAdapter | JSONSchema | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
     ) -> LLMResult:
-        """Run a completion prompt.
-
-        Args:
-            prompt: Prompt to use.
-            data: Keys for the input variables that will be formatted into prompt.
-            callbacks: Optional functions to call with each completion.
-            name: Optional name for the result.
-            system_prompt: System prompt to use, or None/empty string to not use one.
-
-        Returns:
-            Result of the completion.
-        """
-        formatted_prompt: str = (
-            system_prompt + "\n\n" + prompt if system_prompt else prompt
-        ).format(**data)
-        result = LLMResult(
-            model=self.name,
-            name=name,
-            prompt=formatted_prompt,
-            prompt_count=self.count_tokens(formatted_prompt),
+        results = await self.call(
+            messages, callbacks, name, output_type, tools, tool_choice, n=1
         )
-
-        start_clock = asyncio.get_running_loop().time()
-        if callbacks is None:
-            completion = await self.acomplete(formatted_prompt)
-            output = completion.text
-        else:
-            sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
-            async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
-
-            completions = self.acomplete_iter(formatted_prompt)
-            text_result = []
-            async for completion in completions:
-                if completion.text:
-                    if completion.seconds_to_first_token == 0:
-                        completion.seconds_to_first_token = (
-                            asyncio.get_running_loop().time() - start_clock
-                        )
-                    text_result.append(completion.text)
-                    await do_callbacks(
-                        async_callbacks, sync_callbacks, completion.text, name
-                    )
-            output = "".join(text_result)
-        usage = completion.prompt_count, completion.completion_count
-        if sum(usage) > 0:
-            result.prompt_count, result.completion_count = usage
-        elif output:
-            result.completion_count = self.count_tokens(output)
-        result.text = output or ""
-        result.seconds_to_last_token = asyncio.get_running_loop().time() - start_clock
-        if self.llm_result_callback:
-            possibly_awaitable_result = self.llm_result_callback(result)
-            if isawaitable(possibly_awaitable_result):
-                await possibly_awaitable_result
-        return result
+        if not results:
+            raise ValueError("No results returned from call")
+        return results[0]
 
 
 LLMModelOrChild = TypeVar("LLMModelOrChild", bound=LLMModel)
@@ -532,13 +392,7 @@ def rate_limited(
             )
 
         # Estimate token count based on input
-        if func.__name__ in {"acomplete", "acomplete_iter"}:
-            prompt = args[0] if args else kwargs.get("prompt", "")
-            token_count = (
-                len(prompt) / CHARACTERS_PER_TOKEN_ASSUMPTION
-                + EXTRA_TOKENS_FROM_USER_ROLE
-            )
-        elif func.__name__ in {"achat", "achat_iter"}:
+        if func.__name__ in {"acompletion", "acompletion_iter"}:
             messages = args[0] if args else kwargs.get("messages", [])
             token_count = len(str(messages)) / CHARACTERS_PER_TOKEN_ASSUMPTION
         else:
@@ -564,7 +418,7 @@ def rate_limited(
 
         result = await func(self, *args, **kwargs)  # type: ignore[misc]
 
-        if func.__name__ in {"acomplete", "achat"} and isinstance(result, LLMResult):
+        if func.__name__ == "acompletion" and isinstance(result, LLMResult):
             await self.check_rate_limit(result.completion_count)
         return result
 
@@ -576,9 +430,6 @@ class PassThroughRouter(litellm.Router):  # TODO: add rate_limited
 
     def __init__(self, **kwargs):
         self._default_kwargs = kwargs
-
-    async def atext_completion(self, *args, **kwargs):
-        return await litellm.atext_completion(*args, **(self._default_kwargs | kwargs))
 
     async def acompletion(self, *args, **kwargs):
         return await litellm.acompletion(*args, **(self._default_kwargs | kwargs))
@@ -696,44 +547,7 @@ class LiteLLMModel(LLMModel):
             )
 
     @rate_limited
-    async def acomplete(self, prompt: str) -> LLMResult:  # type: ignore[override]
-        response = await track_costs(self.router.atext_completion)(
-            model=self.name, prompt=prompt
-        )
-        return LLMResult(
-            model=self.name,
-            text=response.choices[0].text,
-            prompt_count=response.usage.prompt_tokens,
-            completion_count=response.usage.completion_tokens,
-        )
-
-    @rate_limited
-    async def acomplete_iter(  # type: ignore[override]
-        self, prompt: str
-    ) -> AsyncIterable[LLMResult]:
-        completion = await track_costs_iter(self.router.atext_completion)(
-            model=self.name,
-            prompt=prompt,
-            stream=True,
-            stream_options={"include_usage": True},
-        )
-        async for c in completion:
-            yield LLMResult(
-                model=self.name,
-                text=c.choices[0].text,
-                prompt_count=0,
-                completion_count=0,
-            )
-        if hasattr(c, "usage") and hasattr(c.usage, "prompt_tokens"):
-            yield LLMResult(
-                model=self.name,
-                text=c.choices[0].text,
-                prompt_count=0,
-                completion_count=0,
-            )
-
-    @rate_limited
-    async def achat(self, messages: list[Message], **kwargs) -> list[LLMResult]:  # type: ignore[override]
+    async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:  # type: ignore[override]
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
         completions = await track_costs(self.router.acompletion)(
             self.name, prompts, **kwargs
@@ -770,7 +584,7 @@ class LiteLLMModel(LLMModel):
         return results
 
     @rate_limited
-    async def achat_iter(  # type: ignore[override]
+    async def acompletion_iter(  # type: ignore[override]
         self, messages: list[Message], **kwargs
     ) -> AsyncIterator[LLMResult]:
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
@@ -809,14 +623,6 @@ class LiteLLMModel(LLMModel):
             result.completion_count = completion.usage.completion_tokens
 
         yield result
-
-    def infer_llm_type(self) -> str:
-        if all(
-            "text-completion" in m.get("litellm_params", {}).get("model", "")
-            for m in self.config["model_list"]
-        ):
-            return "completion"
-        return "chat"
 
     def count_tokens(self, text: str) -> int:
         return litellm.token_counter(model=self.name, text=text)

@@ -27,35 +27,35 @@ class TestLiteLLMModel:
         [
             pytest.param(
                 {
-                    "model_name": "gpt-4o-mini",
+                    "model_name": CommonLLMNames.OPENAI_TEST.value,
                     "model_list": [
                         {
-                            "model_name": "gpt-4o-mini",
+                            "model_name": CommonLLMNames.OPENAI_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-4o-mini",
+                                "model": CommonLLMNames.OPENAI_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
                             },
                         }
                     ],
                 },
-                id="chat-model",
+                id="OpenAI-model",
             ),
             pytest.param(
                 {
-                    "model_name": "gpt-3.5-turbo-instruct",
+                    "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
                     "model_list": [
                         {
-                            "model_name": "gpt-3.5-turbo-instruct",
+                            "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-3.5-turbo-instruct",
+                                "model": CommonLLMNames.ANTHROPIC_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
                             },
                         }
                     ],
                 },
-                id="completion-model",
+                id="Anthropic-model",
             ),
         ],
     )
@@ -84,7 +84,7 @@ class TestLiteLLMModel:
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.asyncio
     async def test_call_w_figure(self) -> None:
-        llm = LiteLLMModel(name="gpt-4o")
+        llm = LiteLLMModel(name=CommonLLMNames.OPENAI_BASELINE.value)
         image = np.zeros((32, 32, 3), dtype=np.uint8)
         image[:] = [255, 0, 0]
         messages = [
@@ -141,9 +141,9 @@ class TestLiteLLMModel:
                 {
                     "model_list": [
                         {
-                            "model_name": "gpt-4o-mini",
+                            "model_name": CommonLLMNames.OPENAI_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-4o-mini",
+                                "model": CommonLLMNames.OPENAI_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
                             },
@@ -163,7 +163,7 @@ class TestLiteLLMModel:
     )
     @pytest.mark.asyncio
     async def test_call_single(self, config: dict[str, Any]) -> None:
-        llm = LiteLLMModel(name="gpt-4o-mini", config=config)
+        llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
 
         outputs = []
 
@@ -182,7 +182,7 @@ class TestLiteLLMModel:
             messages=messages,
             callbacks=[accum],
         )
-        assert completion.model == "gpt-4o-mini"
+        assert completion.model == CommonLLMNames.OPENAI_TEST.value
         assert completion.seconds_to_last_token > 0
         assert completion.prompt_count > 0
         assert completion.completion_count > 0
@@ -213,8 +213,11 @@ class TestLiteLLMModel:
                 {
                     "model_list": [
                         {
-                            "model_name": "gpt-4o-mini",
-                            "litellm_params": {"model": "gpt-4o-mini", "max_tokens": 3},
+                            "model_name": CommonLLMNames.OPENAI_TEST.value,
+                            "litellm_params": {
+                                "model": CommonLLMNames.OPENAI_TEST.value,
+                                "max_tokens": 3,
+                            },
                         }
                     ]
                 },
@@ -232,18 +235,21 @@ class TestLiteLLMModel:
     async def test_max_token_truncation(
         self, config: dict[str, Any], bypassed_router: bool
     ) -> None:
-        llm = LiteLLMModel(name="gpt-4o-mini", config=config)
+        llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
         with patch(
-            "litellm.Router.atext_completion",
-            side_effect=litellm.Router.atext_completion,
+            "litellm.Router.acompletion",
+            side_effect=litellm.Router.acompletion,
             autospec=True,
-        ) as mock_atext_completion:
-            completion = await llm.acomplete("Please tell me a story")
+        ) as mock_completion:
+            completions = await llm.acompletion(
+                [Message(role="user", content="Please tell me a story")]
+            )
         if bypassed_router:
-            mock_atext_completion.assert_not_awaited()
+            mock_completion.assert_not_awaited()
         else:
-            mock_atext_completion.assert_awaited_once()
-        assert isinstance(completion, LLMResult)
+            mock_completion.assert_awaited_once()
+        assert isinstance(completions, list)
+        completion = completions[0]
         assert completion.completion_count == 3
         assert completion.text
         assert len(completion.text) < 20
@@ -251,13 +257,13 @@ class TestLiteLLMModel:
     def test_pickling(self, tmp_path: pathlib.Path) -> None:
         pickle_path = tmp_path / "llm_model.pickle"
         llm = LiteLLMModel(
-            name="gpt-4o-mini",
+            name=CommonLLMNames.OPENAI_TEST.value,
             config={
                 "model_list": [
                     {
-                        "model_name": "gpt-4o-mini",
+                        "model_name": CommonLLMNames.OPENAI_TEST.value,
                         "litellm_params": {
-                            "model": "gpt-4o-mini",
+                            "model": CommonLLMNames.OPENAI_TEST.value,
                             "temperature": 0,
                             "max_tokens": 56,
                         },
@@ -293,28 +299,30 @@ class TestMultipleCompletion:
         return await model.call(*args, **kwargs)
 
     @pytest.mark.parametrize(
-        "model_name", ["gpt-3.5-turbo", CommonLLMNames.ANTHROPIC_TEST.value]
+        "model_name",
+        [CommonLLMNames.OPENAI_TEST.value, CommonLLMNames.ANTHROPIC_TEST.value],
     )
     @pytest.mark.asyncio
-    async def test_achat(self, model_name: str) -> None:
+    async def test_acompletion(self, model_name: str) -> None:
         model = self.MODEL_CLS(name=model_name)
         messages = [
             Message(content="What are three things I should do today?"),
         ]
-        response = await model.achat(messages)
+        response = await model.acompletion(messages)
 
         assert isinstance(response, list)
         assert len(response) == 1
         assert isinstance(response[0], LLMResult)
 
     @pytest.mark.parametrize(
-        "model_name", ["gpt-3.5-turbo", CommonLLMNames.ANTHROPIC_TEST.value]
+        "model_name",
+        [CommonLLMNames.OPENAI_TEST.value, CommonLLMNames.ANTHROPIC_TEST.value],
     )
     @pytest.mark.asyncio
-    async def test_achat_iter(self, model_name: str) -> None:
+    async def test_acompletion_iter(self, model_name: str) -> None:
         model = self.MODEL_CLS(name=model_name)
         messages = [Message(content="What are three things I should do today?")]
-        responses = await model.achat_iter(messages)
+        responses = await model.acompletion_iter(messages)
         assert isinstance(responses, AsyncIterator)
 
         async for response in responses:
@@ -322,7 +330,7 @@ class TestMultipleCompletion:
             assert isinstance(response.prompt, list)
 
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
-    @pytest.mark.parametrize("model_name", ["gpt-4o"])
+    @pytest.mark.parametrize("model_name", [CommonLLMNames.OPENAI_TEST.value])
     @pytest.mark.asyncio
     async def test_model(self, model_name: str) -> None:
         # Make model_name an arg so that TestLLMModel can parametrize it
@@ -342,7 +350,8 @@ class TestMultipleCompletion:
             assert result.logprob is None or result.logprob <= 0
 
     @pytest.mark.parametrize(
-        "model_name", [CommonLLMNames.ANTHROPIC_TEST.value, "gpt-3.5-turbo"]
+        "model_name",
+        [CommonLLMNames.ANTHROPIC_TEST.value, CommonLLMNames.OPENAI_TEST.value],
     )
     @pytest.mark.asyncio
     async def test_streaming(self, model_name: str) -> None:
@@ -372,7 +381,9 @@ class TestMultipleCompletion:
             """
 
         results = await self.call_model(
-            self.MODEL_CLS(name="gpt-3.5-turbo", config=self.DEFAULT_CONFIG),
+            self.MODEL_CLS(
+                name=CommonLLMNames.OPENAI_TEST.value, config=self.DEFAULT_CONFIG
+            ),
             messages=[Message(content="Please win.")],
             tools=[Tool.from_function(play)],
         )
@@ -389,12 +400,20 @@ class TestMultipleCompletion:
     @pytest.mark.parametrize(
         ("model_name", "output_type"),
         [
-            pytest.param("gpt-3.5-turbo", DummyOutputSchema, id="json-mode-base-model"),
             pytest.param(
-                "gpt-4o", TypeAdapter(DummyOutputSchema), id="json-mode-type-adapter"
+                CommonLLMNames.OPENAI_TEST.value,
+                DummyOutputSchema,
+                id="json-mode-base-model",
             ),
             pytest.param(
-                "gpt-4o", DummyOutputSchema.model_json_schema(), id="structured-outputs"
+                CommonLLMNames.OPENAI_BASELINE.value,
+                TypeAdapter(DummyOutputSchema),
+                id="json-mode-type-adapter",
+            ),
+            pytest.param(
+                CommonLLMNames.OPENAI_TEST.value,
+                DummyOutputSchema.model_json_schema(),
+                id="structured-outputs",
             ),
         ],
     )
@@ -447,7 +466,8 @@ class TestMultipleCompletion:
             assert "red" in result.messages[-1].content.lower()
 
     @pytest.mark.parametrize(
-        "model_name", [CommonLLMNames.ANTHROPIC_TEST.value, "gpt-3.5-turbo"]
+        "model_name",
+        [CommonLLMNames.ANTHROPIC_TEST.value, CommonLLMNames.OPENAI_TEST.value],
     )
     @pytest.mark.asyncio
     @pytest.mark.vcr
