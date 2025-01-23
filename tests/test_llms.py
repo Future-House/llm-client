@@ -504,6 +504,8 @@ def test_json_schema_validation() -> None:
         validate_json_completion(mock_completion2, DummyModel)
     validate_json_completion(mock_completion3, DummyModel)
 
+
+@pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
 @pytest.mark.asyncio
 async def test_deepseek_model():
     llm = LiteLLMModel(
@@ -521,11 +523,11 @@ async def test_deepseek_model():
         },
     )
     messages = [
-        Message(role="system", content="Think deeply about the following question and answer it."),
+        Message(
+            role="system",
+            content="Think deeply about the following question and answer it.",
+        ),
         Message(content="What is the meaning of life?"),
     ]
     results = await llm.call(messages)
     assert results.reasoning_content
-
-
-
