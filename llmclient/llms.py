@@ -553,7 +553,11 @@ class LiteLLMModel(LLMModel):
 
     @rate_limited
     async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:
-        prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
+        # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
+        prompts = cast(
+            list[litellm.types.llms.openai.AllMessageValues],
+            [m.model_dump(by_alias=True) for m in messages if m.content],
+        )
         completions = await track_costs(self.router.acompletion)(
             self.name, prompts, **kwargs
         )
@@ -602,7 +606,11 @@ class LiteLLMModel(LLMModel):
     async def acompletion_iter(
         self, messages: list[Message], **kwargs
     ) -> AsyncIterable[LLMResult]:
-        prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
+        # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
+        prompts = cast(
+            list[litellm.types.llms.openai.AllMessageValues],
+            [m.model_dump(by_alias=True) for m in messages if m.content],
+        )
         stream_completions = await track_costs_iter(self.router.acompletion)(
             self.name,
             prompts,
