@@ -71,6 +71,7 @@ class CommonLLMNames(StrEnum):
 
     # Use these to avoid thinking about exact versions
     GPT_4O = "gpt-4o-2024-11-20"
+    GPT_35 = "gpt-3.5-turbo-0125"
     CLAUDE_35_SONNET = "claude-3-5-sonnet-20241022"
 
     # Use these when trying to think of a somewhat opinionated default
@@ -428,6 +429,9 @@ class PassThroughRouter(litellm.Router):  # TODO: add rate_limited
 
     def __init__(self, **kwargs):
         self._default_kwargs = kwargs
+
+    async def atext_completion(self, *args, **kwargs):
+        return await litellm.atext_completion(*args, **(self._default_kwargs | kwargs))
 
     async def acompletion(self, *args, **kwargs):
         return await litellm.acompletion(*args, **(self._default_kwargs | kwargs))
