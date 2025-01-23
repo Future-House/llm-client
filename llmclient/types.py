@@ -79,6 +79,9 @@ class LLMResult(BaseModel):
     logprob: float | None = Field(
         default=None, description="Sum of logprobs in the completion."
     )
+    reasoning_content: str | None = Field(
+        default=None, description="Reasoning content from LLMs such as DeepSeek-R1."
+    )
 
     def __str__(self) -> str:
         return self.text or ""

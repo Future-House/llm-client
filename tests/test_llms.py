@@ -547,3 +547,45 @@ def test_json_schema_validation() -> None:
     with pytest.raises(JSONSchemaValidationError):
         validate_json_completion(mock_completion2, DummyModel)
     validate_json_completion(mock_completion3, DummyModel)
+
+
+# @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
+@pytest.mark.asyncio
+async def test_deepseek_model():
+    llm = LiteLLMModel(
+        name="deepseek/deepseek-reasoner",
+        config={
+            "model_list": [
+                {
+                    "model_name": "deepseek/deepseek-reasoner",
+                    "litellm_params": {
+                        "model": "deepseek/deepseek-reasoner",
+                        "api_base": "https://api.deepseek.com/v1",
+                    },
+                }
+            ]
+        },
+    )
+    messages = [
+        Message(
+            role="system",
+            content="Think deeply about the following question and answer it.",
+        ),
+        Message(content="What is the meaning of life?"),
+    ]
+    results = await llm.call(messages)
+    for result in results:
+        assert result.reasoning_content
+
+    outputs = []
+
+    def accum(x) -> None:
+        outputs.append(x)
+
+    results = await llm.call(messages, callbacks=[accum])
+    for result in results:
+        # TODO: Litellm is not populating provider_specific_fields in streaming mode.
+        # https://github.com/BerriAI/litellm/issues/7942
+        # I'm keeping this test as a reminder to fix this.
+        # once the issue is fixed.
+        assert not result.reasoning_content
