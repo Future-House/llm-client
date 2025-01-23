@@ -71,7 +71,7 @@ class CommonLLMNames(StrEnum):
 
     # Use these to avoid thinking about exact versions
     GPT_4O = "gpt-4o-2024-11-20"
-    GPT_35 = "gpt-3.5-turbo-0125"
+    GPT_35_TURBO = "gpt-3.5-turbo-0125"
     CLAUDE_35_SONNET = "claude-3-5-sonnet-20241022"
 
     # Use these when trying to think of a somewhat opinionated default
@@ -84,26 +84,29 @@ class CommonLLMNames(StrEnum):
     )
 
 
-def sum_logprobs(choice: litellm.utils.Choices) -> float | None:
+def sum_logprobs(choice: litellm.utils.Choices | list) -> float | None:
     """Calculate the sum of the log probabilities of an LLM completion (a Choices object).
 
     Args:
-        choice: A sequence of choices from the completion.
+        choice: A sequence of choices from the completion or an iterable with logprobs.
 
     Returns:
         The sum of the log probabilities of the choice.
     """
-    try:
-        logprob_obj = choice.logprobs
-    except AttributeError:
-        return None
-    if isinstance(logprob_obj, dict):
-        if logprob_obj.get("content"):
-            return sum(
-                logprob_info["logprob"] for logprob_info in logprob_obj["content"]
-            )
-    elif choice.logprobs.content:
-        return sum(logprob_info.logprob for logprob_info in choice.logprobs.content)
+    if isinstance(choice, litellm.utils.Choices):
+        try:
+            logprob_obj = choice.logprobs
+        except AttributeError:
+            return None
+        if isinstance(logprob_obj, dict):
+            if logprob_obj.get("content"):
+                return sum(
+                    logprob_info["logprob"] for logprob_info in logprob_obj["content"]
+                )
+        elif choice.logprobs.content:
+            return sum(logprob_info.logprob for logprob_info in choice.logprobs.content)
+    elif isinstance(choice, list):
+        return sum(choice)
     return None
 
 
@@ -190,7 +193,7 @@ class LLMModel(ABC, BaseModel):
 
     async def acompletion_iter(
         self, messages: list[Message], **kwargs
-    ) -> AsyncIterator[LLMResult]:
+    ) -> AsyncGenerator[LLMResult]:
         """Return an async generator that yields completions.
 
         Only the last tuple will be non-zero.
@@ -600,9 +603,13 @@ class LiteLLMModel(LLMModel):
         start_clock = asyncio.get_running_loop().time()
         result = LLMResult(model=self.name, prompt=messages)
         outputs = []
+        logprobs = []
         role = None
         async for completion in stream_completions:
-            delta = completion.choices[0].delta
+            choice = completion.choices[0]
+            delta = choice.delta
+            if hasattr(choice.logprobs, "content"):
+                logprobs.append(choice.logprobs.content[0].logprob or 0)
             outputs.append(delta.content or "")
             role = delta.role or role
 
@@ -613,7 +620,7 @@ class LiteLLMModel(LLMModel):
             prompt=messages,
             messages=[Message(role=role, content=text)],
             # TODO: Can we marginalize over all choices?
-            # logprob=sum_logprobs(completion),
+            logprob=sum_logprobs(logprobs),
         )
 
         if text:
