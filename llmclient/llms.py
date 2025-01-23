@@ -619,17 +619,18 @@ class LiteLLMModel(LLMModel):
     @rate_limited
     async def achat(self, messages: list[Message]) -> Chunk:  # type: ignore[override]
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
+        # type ignore of arg-type is due to https://github.com/BerriAI/litellm/issues/7641
         response = await track_costs(self.router.acompletion)(self.name, prompts)  # type: ignore[arg-type]
         choice = response.choices[0]
         reasoning_content = None
-        if isinstance(choice, litellm.Choices) and hasattr(
-            choice.message, "provider_specific_fields"
+        if (
+            isinstance(choice, litellm.Choices)
+            and hasattr(choice.message, "provider_specific_fields")
+            and isinstance(choice.message.provider_specific_fields, dict)
         ):
-            provider_specific_fields = choice.message.provider_specific_fields
-            if isinstance(provider_specific_fields, dict):
-                reasoning_content = provider_specific_fields.get(
-                    "reasoning_content", None
-                )
+            reasoning_content = choice.message.provider_specific_fields.get(
+                "reasoning_content", None
+            )
 
         return Chunk(
             text=cast(litellm.Choices, choice).message.content,
@@ -877,12 +878,12 @@ class MultipleCompletionLLMModel(BaseModel):
                     output_messages = [Message(**choice.message.model_dump())]
 
                 reasoning_content = None
-                if hasattr(choice.message, "provider_specific_fields"):
-                    provider_specific_fields = choice.message.provider_specific_fields
-                    if isinstance(provider_specific_fields, dict):
-                        reasoning_content = provider_specific_fields.get(
-                            "reasoning_content", None
-                        )
+                if hasattr(choice.message, "provider_specific_fields") and isinstance(
+                    choice.message.provider_specific_fields, dict
+                ):
+                    reasoning_content = choice.message.provider_specific_fields.get(
+                        "reasoning_content", None
+                    )
 
                 results.append(
                     LLMResult(
