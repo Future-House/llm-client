@@ -567,6 +567,13 @@ class LiteLLMModel(LLMModel):
                 ]
             else:
                 output_messages = [Message(**completion.message.model_dump())]
+
+            reasoning_content = None
+            if hasattr(completion.message, "provider_specific_fields"):
+                reasoning_content = completion.message.provider_specific_fields.get(
+                    "reasoning_content", None
+                )
+
             results.append(
                 LLMResult(
                     model=self.name,
@@ -577,6 +584,7 @@ class LiteLLMModel(LLMModel):
                     prompt_count=completions.usage.prompt_tokens,  # type: ignore[attr-defined]
                     completion_count=completions.usage.completion_tokens,  # type: ignore[attr-defined]
                     system_fingerprint=completions.system_fingerprint,
+                    reasoning_content=reasoning_content,
                 )
             )
         return results
@@ -601,6 +609,7 @@ class LiteLLMModel(LLMModel):
             delta = completion.choices[0].delta
             outputs.append(delta.content or "")
             role = delta.role or role
+            #TODO: Check how to get reasoning_content from the LLM while streaming
 
         text = "".join(outputs)
         result = LLMResult(
