@@ -39,7 +39,7 @@ class Chunk(BaseModel):
     prompt_tokens: int
     completion_tokens: int
     reasoning_content: str | None = Field(
-        default=None, description="DeepSeek-R1 reasoning content from the LLM."
+        default=None, description="Reasoning content from LLMs such as DeepSeek-R1."
     )
 
     def __str__(self):
@@ -94,7 +94,7 @@ class LLMResult(BaseModel):
         default=None, description="Sum of logprobs in the completion."
     )
     reasoning_content: str | None = Field(
-        default=None, description="DeepSeek-R1 reasoning content from the LLM."
+        default=None, description="Reasoning content from LLMs such as DeepSeek-R1."
     )
 
     def __str__(self) -> str:
