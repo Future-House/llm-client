@@ -567,9 +567,11 @@ class LiteLLMModel(LLMModel):
 
             reasoning_content = None
             if hasattr(completion.message, "provider_specific_fields"):
-                reasoning_content = completion.message.provider_specific_fields.get(
-                    "reasoning_content", None
-                )
+                provider_specific_fields = completion.message.provider_specific_fields
+                if isinstance(provider_specific_fields, dict):
+                    reasoning_content = provider_specific_fields.get(
+                        "reasoning_content", None
+                    )
 
             results.append(
                 LLMResult(
@@ -609,7 +611,9 @@ class LiteLLMModel(LLMModel):
                 logprobs.append(choice.logprobs.content[0].logprob or 0)
             outputs.append(delta.content or "")
             role = delta.role or role
-            #TODO: Check how to get reasoning_content from the LLM while streaming
+            # NOTE: litellm is not populating provider_specific_fields in streaming mode.
+            # TODO: Get reasoning_content when this issue is fixed
+            # https://github.com/BerriAI/litellm/issues/7942
 
         text = "".join(outputs)
         result = LLMResult(
@@ -617,7 +621,6 @@ class LiteLLMModel(LLMModel):
             text=text,
             prompt=messages,
             messages=[Message(role=role, content=text)],
-            # TODO: Can we marginalize over all choices?
             logprob=sum_logprobs(logprobs),
         )
 
