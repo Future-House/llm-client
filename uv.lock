@@ -552,7 +552,6 @@ dependencies = [
 dev = [
     { name = "fhaviary", extra = ["xml"] },
     { name = "ipython" },
-    { name = "litellm" },
     { name = "mypy" },
     { name = "numpy" },
     { name = "pre-commit" },
@@ -592,9 +591,7 @@ requires-dist = [
     { name = "fhaviary", extras = ["xml"], marker = "extra == 'dev'" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "limits" },
-    { name = "litellm", marker = "python_full_version < '3.13'", specifier = ">1.59.3" },
-    { name = "litellm", marker = "python_full_version >= '3.13'", specifier = ">=1.49.1" },
-    { name = "litellm", marker = "extra == 'dev'", specifier = ">1.59.3" },
+    { name = "litellm", specifier = ">=1.59.3" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
     { name = "numpy", marker = "extra == 'local'" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
