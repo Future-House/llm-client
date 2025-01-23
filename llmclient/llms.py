@@ -5,23 +5,16 @@ import json
 import logging
 from abc import ABC
 from collections.abc import (
-    AsyncGenerator,
     AsyncIterable,
-    AsyncIterator,
     Awaitable,
     Callable,
+    Coroutine,
     Iterable,
     Mapping,
 )
 from enum import StrEnum
 from inspect import isasyncgenfunction, isawaitable, signature
-from typing import (
-    Any,
-    ClassVar,
-    TypeAlias,
-    TypeVar,
-    cast,
-)
+from typing import Any, ClassVar, ParamSpec, TypeAlias, cast, overload
 
 import litellm
 from aviary.core import (
@@ -32,7 +25,6 @@ from aviary.core import (
     ToolSelector,
     is_coroutine_callable,
 )
-from litellm.types.utils import ModelResponse, ModelResponseStream
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -84,7 +76,7 @@ class CommonLLMNames(StrEnum):
     )
 
 
-def sum_logprobs(choice: litellm.utils.Choices | list) -> float | None:
+def sum_logprobs(choice: litellm.utils.Choices | list[float]) -> float | None:
     """Calculate the sum of the log probabilities of an LLM completion (a Choices object).
 
     Args:
@@ -193,14 +185,12 @@ class LLMModel(ABC, BaseModel):
 
     async def acompletion_iter(
         self, messages: list[Message], **kwargs
-    ) -> AsyncGenerator[LLMResult]:
+    ) -> AsyncIterable[LLMResult]:
         """Return an async generator that yields completions.
 
         Only the last tuple will be non-zero.
         """
         raise NotImplementedError
-        if False:  # type: ignore[unreachable]  # pylint: disable=using-constant-test
-            yield  # Trick mypy: https://github.com/python/mypy/issues/5070#issuecomment-1050834495
 
     def count_tokens(self, text: str) -> int:
         return len(text) // 4  # gross approximation
@@ -323,7 +313,7 @@ class LLMModel(ABC, BaseModel):
                 )
             sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
             async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
-            stream_results = await self.acompletion_iter(messages, **chat_kwargs)  # type: ignore[misc]
+            stream_results = await self.acompletion_iter(messages, **chat_kwargs)
             text_result = []
             async for result in stream_results:
                 if result.text:
@@ -340,7 +330,7 @@ class LLMModel(ABC, BaseModel):
         for result in results:
             usage = result.prompt_count, result.completion_count
             if not sum(usage):
-                result.completion_count = self.count_tokens(result.text)
+                result.completion_count = self.count_tokens(cast(str, result.text))
             result.seconds_to_last_token = (
                 asyncio.get_running_loop().time() - start_clock
             )
@@ -368,25 +358,26 @@ class LLMModel(ABC, BaseModel):
         return results[0]
 
 
-LLMModelOrChild = TypeVar("LLMModelOrChild", bound=LLMModel)
+P = ParamSpec("P")
 
 
+@overload
 def rate_limited(
-    func: Callable[
-        [LLMModelOrChild, Any],
-        Awaitable[ModelResponse | ModelResponseStream | list[LLMResult]]
-        | AsyncIterable[LLMResult],
-    ],
-) -> Callable[
-    [LLMModelOrChild, Any],
-    Awaitable[list[LLMResult] | AsyncIterator[LLMResult]],
-]:
+    func: Callable[P, Coroutine[Any, Any, list[LLMResult]]],
+) -> Callable[P, Coroutine[Any, Any, list[LLMResult]]]: ...
+
+
+@overload
+def rate_limited(
+    func: Callable[P, AsyncIterable[LLMResult]],
+) -> Callable[P, Coroutine[Any, Any, AsyncIterable[LLMResult]]]: ...
+
+
+def rate_limited(func):
     """Decorator to rate limit relevant methods of an LLMModel."""
 
     @functools.wraps(func)
-    async def wrapper(
-        self: LLMModelOrChild, *args: Any, **kwargs: Any
-    ) -> list[LLMResult] | AsyncIterator[LLMResult]:
+    async def wrapper(self, *args, **kwargs):
         if not hasattr(self, "check_rate_limit"):
             raise NotImplementedError(
                 f"Model {self.name} must have a `check_rate_limit` method."
@@ -405,7 +396,7 @@ def rate_limited(
         # portion before yielding
         if isasyncgenfunction(func):
 
-            async def rate_limited_generator() -> AsyncGenerator[LLMResult, None]:
+            async def rate_limited_generator() -> AsyncIterable[LLMResult]:
                 async for item in func(self, *args, **kwargs):
                     token_count = 0
                     if isinstance(item, LLMResult):
@@ -417,9 +408,8 @@ def rate_limited(
 
             return rate_limited_generator()
 
-        # We checked isasyncgenfunction above, so this must be a Awaitable
-        result = await cast(Awaitable[Any], func(self, *args, **kwargs))
-
+        # We checked isasyncgenfunction above, so this must be an Awaitable
+        result = await func(self, *args, **kwargs)
         if func.__name__ == "acompletion" and isinstance(result, list):
             await self.check_rate_limit(sum(r.completion_count for r in result))
         return result
@@ -552,7 +542,7 @@ class LiteLLMModel(LLMModel):
             )
 
     @rate_limited
-    async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:  # type: ignore[override]
+    async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
         completions = await track_costs(self.router.acompletion)(
             self.name, prompts, **kwargs
@@ -589,9 +579,9 @@ class LiteLLMModel(LLMModel):
         return results
 
     @rate_limited
-    async def acompletion_iter(  # type: ignore[override]
+    async def acompletion_iter(
         self, messages: list[Message], **kwargs
-    ) -> AsyncGenerator[LLMResult]:
+    ) -> AsyncIterable[LLMResult]:
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
         stream_completions = await track_costs_iter(self.router.acompletion)(
             self.name,
@@ -601,7 +591,6 @@ class LiteLLMModel(LLMModel):
             **kwargs,
         )
         start_clock = asyncio.get_running_loop().time()
-        result = LLMResult(model=self.name, prompt=messages)
         outputs = []
         logprobs = []
         role = None
