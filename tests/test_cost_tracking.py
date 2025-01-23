@@ -8,7 +8,7 @@ from aviary.core import Message
 from llmclient import cost_tracking_ctx
 from llmclient.cost_tracker import GLOBAL_COST_TRACKER
 from llmclient.embeddings import LiteLLMEmbeddingModel
-from llmclient.llms import LiteLLMModel
+from llmclient.llms import CommonLLMNames, LiteLLMModel
 
 from .conftest import VCR_DEFAULT_MATCH_ON
 
@@ -37,35 +37,35 @@ class TestLiteLLMModel:
         [
             pytest.param(
                 {
-                    "model_name": "gpt-4o-mini",
+                    "model_name": CommonLLMNames.OPENAI_TEST.value,
                     "model_list": [
                         {
-                            "model_name": "gpt-4o-mini",
+                            "model_name": CommonLLMNames.OPENAI_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-4o-mini",
+                                "model": CommonLLMNames.OPENAI_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
                             },
                         }
                     ],
                 },
-                id="chat-model",
+                id="OpenAI-model",
             ),
             pytest.param(
                 {
-                    "model_name": "gpt-3.5-turbo-instruct",
+                    "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
                     "model_list": [
                         {
-                            "model_name": "gpt-3.5-turbo-instruct",
+                            "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-3.5-turbo-instruct",
+                                "model": CommonLLMNames.ANTHROPIC_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
                             },
                         }
                     ],
                 },
-                id="completion-model",
+                id="Anthropic-model",
             ),
         ],
     )
@@ -86,7 +86,7 @@ class TestLiteLLMModel:
 
         with cost_tracking_ctx():
             with assert_costs_increased():
-                llm = LiteLLMModel(name="gpt-4o")
+                llm = LiteLLMModel(name=CommonLLMNames.GPT_4O.value)
                 image = np.zeros((32, 32, 3), dtype=np.uint8)
                 image[:] = [255, 0, 0]
                 messages = [
@@ -116,9 +116,9 @@ class TestLiteLLMModel:
                 {
                     "model_list": [
                         {
-                            "model_name": "gpt-4o-mini",
+                            "model_name": CommonLLMNames.OPENAI_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-4o-mini",
+                                "model": CommonLLMNames.OPENAI_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
                             },
@@ -139,7 +139,7 @@ class TestLiteLLMModel:
     @pytest.mark.asyncio
     async def test_call_single(self, config: dict[str, Any]) -> None:
         with cost_tracking_ctx(), assert_costs_increased():
-            llm = LiteLLMModel(name="gpt-4o-mini", config=config)
+            llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
 
             outputs = []
 

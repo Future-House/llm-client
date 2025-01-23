@@ -84,7 +84,7 @@ class TestLiteLLMModel:
     # @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON])
     @pytest.mark.asyncio
     async def test_call_w_figure(self) -> None:
-        llm = LiteLLMModel(name=CommonLLMNames.OPENAI_BASELINE.value)
+        llm = LiteLLMModel(name=CommonLLMNames.GPT_4O.value)
         image = np.zeros((32, 32, 3), dtype=np.uint8)
         image[:] = [255, 0, 0]
         messages = [
@@ -300,7 +300,7 @@ class TestMultipleCompletion:
 
     @pytest.mark.parametrize(
         "model_name",
-        [CommonLLMNames.OPENAI_TEST.value, CommonLLMNames.ANTHROPIC_TEST.value],
+        [CommonLLMNames.GPT_35.value, CommonLLMNames.ANTHROPIC_TEST.value],
     )
     @pytest.mark.asyncio
     async def test_acompletion(self, model_name: str) -> None:
@@ -330,7 +330,7 @@ class TestMultipleCompletion:
             assert isinstance(response.prompt, list)
 
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
-    @pytest.mark.parametrize("model_name", [CommonLLMNames.OPENAI_TEST.value])
+    @pytest.mark.parametrize("model_name", [CommonLLMNames.GPT_35.value])
     @pytest.mark.asyncio
     async def test_model(self, model_name: str) -> None:
         # Make model_name an arg so that TestLLMModel can parametrize it
@@ -351,7 +351,7 @@ class TestMultipleCompletion:
 
     @pytest.mark.parametrize(
         "model_name",
-        [CommonLLMNames.ANTHROPIC_TEST.value, CommonLLMNames.OPENAI_TEST.value],
+        [CommonLLMNames.ANTHROPIC_TEST.value, CommonLLMNames.GPT_35.value],
     )
     @pytest.mark.asyncio
     async def test_streaming(self, model_name: str) -> None:
@@ -382,7 +382,7 @@ class TestMultipleCompletion:
 
         results = await self.call_model(
             self.MODEL_CLS(
-                name=CommonLLMNames.OPENAI_TEST.value, config=self.DEFAULT_CONFIG
+                name=CommonLLMNames.GPT_35.value, config=self.DEFAULT_CONFIG
             ),
             messages=[Message(content="Please win.")],
             tools=[Tool.from_function(play)],
@@ -401,17 +401,17 @@ class TestMultipleCompletion:
         ("model_name", "output_type"),
         [
             pytest.param(
-                CommonLLMNames.OPENAI_TEST.value,
+                CommonLLMNames.GPT_35.value,
                 DummyOutputSchema,
                 id="json-mode-base-model",
             ),
             pytest.param(
-                CommonLLMNames.OPENAI_BASELINE.value,
+                CommonLLMNames.GPT_4O.value,
                 TypeAdapter(DummyOutputSchema),
                 id="json-mode-type-adapter",
             ),
             pytest.param(
-                CommonLLMNames.OPENAI_TEST.value,
+                CommonLLMNames.GPT_4O.value,
                 DummyOutputSchema.model_json_schema(),
                 id="structured-outputs",
             ),
@@ -467,7 +467,7 @@ class TestMultipleCompletion:
 
     @pytest.mark.parametrize(
         "model_name",
-        [CommonLLMNames.ANTHROPIC_TEST.value, CommonLLMNames.OPENAI_TEST.value],
+        [CommonLLMNames.ANTHROPIC_TEST.value, CommonLLMNames.GPT_35.value],
     )
     @pytest.mark.asyncio
     @pytest.mark.vcr
