@@ -537,7 +537,7 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.0.10.dev0+g25c76c8.d20250109"
+version = "0.0.11.dev2+g2cf41d1.d20250123"
 source = { editable = "." }
 dependencies = [
     { name = "coredis" },
@@ -578,44 +578,10 @@ local = [
 [package.dev-dependencies]
 codeflash = [
     { name = "codeflash" },
-    { name = "fhaviary", extra = ["xml"] },
-    { name = "ipython" },
-    { name = "litellm" },
-    { name = "mypy" },
-    { name = "numpy" },
-    { name = "pre-commit" },
-    { name = "pylint-pydantic" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-recording" },
-    { name = "pytest-rerunfailures" },
-    { name = "pytest-subtests" },
-    { name = "pytest-sugar" },
-    { name = "pytest-timer", extra = ["colorama"] },
-    { name = "pytest-xdist" },
-    { name = "python-dotenv" },
-    { name = "refurb" },
-    { name = "sentence-transformers" },
+    { name = "fh-llm-client", extra = ["dev"] },
 ]
 dev = [
-    { name = "fhaviary", extra = ["xml"] },
-    { name = "ipython" },
-    { name = "litellm" },
-    { name = "mypy" },
-    { name = "numpy" },
-    { name = "pre-commit" },
-    { name = "pylint-pydantic" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-recording" },
-    { name = "pytest-rerunfailures" },
-    { name = "pytest-subtests" },
-    { name = "pytest-sugar" },
-    { name = "pytest-timer", extra = ["colorama"] },
-    { name = "pytest-xdist" },
-    { name = "python-dotenv" },
-    { name = "refurb" },
-    { name = "sentence-transformers" },
+    { name = "fh-llm-client", extra = ["dev"] },
 ]
 
 [package.metadata]
@@ -626,9 +592,9 @@ requires-dist = [
     { name = "fhaviary", extras = ["xml"], marker = "extra == 'dev'" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "limits" },
-    { name = "litellm", marker = "python_full_version < '3.13'" },
+    { name = "litellm", marker = "python_full_version < '3.13'", specifier = ">1.59.3" },
     { name = "litellm", marker = "python_full_version >= '3.13'", specifier = ">=1.49.1" },
-    { name = "litellm", marker = "extra == 'dev'", specifier = "<1.57.2" },
+    { name = "litellm", marker = "extra == 'dev'", specifier = ">1.59.3" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
     { name = "numpy", marker = "extra == 'local'" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
@@ -1107,7 +1073,7 @@ wheels = [
 
 [[package]]
 name = "litellm"
-version = "1.57.1"
+version = "1.59.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1122,9 +1088,9 @@ dependencies = [
     { name = "tiktoken" },
     { name = "tokenizers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5c/4f/0319ff9bd29ed0c900158fa0afe4ccf4365de2d1b6b572c6212ffbee835e/litellm-1.57.1.tar.gz", hash = "sha256:2ce6ce1707c92fb278f828a8ea058fa12b3eeb8081dd8c10776569995e03bb6f", size = 6299132 }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/7d/0e7361a6547d651f37ce2a1ddc1d0c918bfa8d2cb09e404ef78d31709793/litellm-1.59.5.tar.gz", hash = "sha256:5124014c0c239ee63adc8aa29f1c396bc653e2b53e5aceca9081cd665e58202f", size = 6378619 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/09/02/2760c82c7f7779933527d348ea6272f41f6ff8bb29b9e301cc66ff7b5754/litellm-1.57.1-py3-none-any.whl", hash = "sha256:f9e93689f2d96df3bcebe723d44b6e2e71b9b047ec7ebd1054b6c9bc96cd9515", size = 6582106 },
+    { url = "https://files.pythonhosted.org/packages/fa/fe/4c1c62223758c5c7f7f449cc4e964729209b27f7ad931dc5ca1d9b050dc5/litellm-1.59.5-py3-none-any.whl", hash = "sha256:2e3a5242c41203e08500d5d1bad746ad67869842227b8f8f768795c627cb85f6", size = 6665867 },
 ]
 
 [[package]]
