@@ -322,6 +322,7 @@ class LLMModel(ABC, BaseModel):
         if callbacks is None:
             chunk = await self.achat(messages)
             output = chunk.text
+            result.reasoning_content = chunk.reasoning_content
         else:
             sync_callbacks = [f for f in callbacks if not is_coroutine_callable(f)]
             async_callbacks = [f for f in callbacks if is_coroutine_callable(f)]
@@ -618,11 +619,20 @@ class LiteLLMModel(LLMModel):
     @rate_limited
     async def achat(self, messages: list[Message]) -> Chunk:  # type: ignore[override]
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
-        response = await track_costs(self.router.acompletion)(self.name, prompts)
+        response = await track_costs(self.router.acompletion)(self.name, prompts)  # type: ignore[arg-type]
+        choice = response.choices[0]
+        try:
+            reasoning_content = choice.message.provider_specific_fields.get(  # type: ignore[union-attr]
+                "reasoning_content", None
+            )
+        except AttributeError:
+            reasoning_content = None
+
         return Chunk(
-            text=cast(litellm.Choices, response.choices[0]).message.content,
+            text=cast(litellm.Choices, choice).message.content,
             prompt_tokens=response.usage.prompt_tokens,  # type: ignore[attr-defined]
             completion_tokens=response.usage.completion_tokens,  # type: ignore[attr-defined]
+            reasoning_content=reasoning_content,
         )
 
     @rate_limited
@@ -630,7 +640,7 @@ class LiteLLMModel(LLMModel):
         self, messages: list[Message]
     ) -> AsyncIterable[Chunk]:
         prompts = [m.model_dump(by_alias=True) for m in messages if m.content]
-        completion = await track_costs_iter(self.router.acompletion)(
+        completion = await track_costs_iter(self.router.acompletion)(  # type: ignore[call-overload]
             self.name,
             prompts,
             stream=True,
@@ -863,6 +873,13 @@ class MultipleCompletionLLMModel(BaseModel):
                 else:
                     output_messages = [Message(**choice.message.model_dump())]
 
+                try:
+                    reasoning_content = choice.message.provider_specific_fields.get(  # type: ignore[union-attr]
+                        "reasoning_content", None
+                    )
+                except AttributeError:
+                    reasoning_content = None
+
                 results.append(
                     LLMResult(
                         model=self.name,
@@ -874,6 +891,7 @@ class MultipleCompletionLLMModel(BaseModel):
                         # Note that these counts are aggregated over all choices
                         completion_count=completion.usage.completion_tokens,  # type: ignore[attr-defined,unused-ignore]
                         prompt_count=completion.usage.prompt_tokens,  # type: ignore[attr-defined,unused-ignore]
+                        reasoning_content=reasoning_content,
                     )
                 )
         else:

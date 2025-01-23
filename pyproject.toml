@@ -29,8 +29,8 @@ dependencies = [
     "pydantic~=2.0,>=2.10.1,<2.10.2",
     "tiktoken>=0.4.0",
     "typing-extensions; python_version <= '3.11'",  # for typing.override
-    'litellm>v1.59.3; python_version < "3.13"',  # NOTE: paper-qa==5.3 doesn't support 3.13 yet
     'litellm>=1.49.1; python_version >= "3.13"',  # For removal of imghdr
+    'litellm>v1.59.3; python_version < "3.13"',  # NOTE: paper-qa==5.3 doesn't support 3.13 yet
 ]
 description = "A client to provide LLM responses for FutureHouse applications."
 dynamic = ["version"]
