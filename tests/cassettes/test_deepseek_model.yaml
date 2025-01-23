@@ -1,0 +1,129 @@
+interactions:
+  - request:
+      body:
+        '{"messages": [{"role": "system", "content": "Think deeply about the following
+        question and answer it."}, {"role": "user", "content": "What is the meaning
+        of life?"}], "model": "deepseek-reasoner"}'
+      headers:
+        accept:
+          - application/json
+        accept-encoding:
+          - gzip, deflate
+        connection:
+          - keep-alive
+        content-length:
+          - "196"
+        content-type:
+          - application/json
+        host:
+          - api.deepseek.com
+        user-agent:
+          - AsyncOpenAI/Python 1.59.4
+        x-stainless-arch:
+          - arm64
+        x-stainless-async:
+          - async:asyncio
+        x-stainless-lang:
+          - python
+        x-stainless-os:
+          - MacOS
+        x-stainless-package-version:
+          - 1.59.4
+        x-stainless-raw-response:
+          - "true"
+        x-stainless-retry-count:
+          - "0"
+        x-stainless-runtime:
+          - CPython
+        x-stainless-runtime-version:
+          - 3.11.10
+      method: POST
+      uri: https://api.deepseek.com/v1/chat/completions
+    response:
+      body:
+        string: !!binary |
+          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
+          UV3RFQAA
+      headers:
+        CF-Cache-Status:
+          - DYNAMIC
+        CF-RAY:
+          - 9069ba06193b2385-SJC
+        Connection:
+          - keep-alive
+        Content-Encoding:
+          - gzip
+        Content-Type:
+          - application/json
+        Date:
+          - Thu, 23 Jan 2025 18:08:01 GMT
+        Server:
+          - cloudflare
+        Set-Cookie:
+          - HWWAFSESTIME=1737655677464; path=/
+          - HWWAFSESID=dbccf3136ca6f7c2ba5; path=/
+          - __cf_bm=PMI.9Rz8yRQk0QDn7MVmUNSBq9LZ2hyA6mfqCmy1osg-1737655681-1.0.1.1-onO5FH.2J6PhTBPbUGlnp48UE8WbqJGXIlrxXAo0RlM1fiAWcJmqA9pn6VbthUsbEPBs_2g.4odrzuvEEEetdQ;
+            path=/; expires=Thu, 23-Jan-25 18:38:01 GMT; domain=.deepseek.com; HttpOnly;
+            Secure; SameSite=None
+        Transfer-Encoding:
+          - chunked
+        access-control-allow-credentials:
+          - "true"
+        strict-transport-security:
+          - max-age=31536000; includeSubDomains; preload
+        vary:
+          - origin, access-control-request-method, access-control-request-headers
+        x-content-type-options:
+          - nosniff
+        x-ds-trace-id:
+          - f3ad8da06d3b7c7a50b787e80fb723bc
+      status:
+        code: 200
+        message: OK
+version: 1
