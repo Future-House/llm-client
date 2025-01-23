@@ -503,3 +503,29 @@ def test_json_schema_validation() -> None:
     with pytest.raises(JSONSchemaValidationError):
         validate_json_completion(mock_completion2, DummyModel)
     validate_json_completion(mock_completion3, DummyModel)
+
+@pytest.mark.asyncio
+async def test_deepseek_model():
+    llm = LiteLLMModel(
+        name="deepseek/deepseek-reasoner",
+        config={
+            "model_list": [
+                {
+                    "model_name": "deepseek/deepseek-reasoner",
+                    "litellm_params": {
+                        "model": "deepseek/deepseek-reasoner",
+                        "api_base": "https://api.deepseek.com/v1",
+                    },
+                }
+            ]
+        },
+    )
+    messages = [
+        Message(role="system", content="Think deeply about the following question and answer it."),
+        Message(content="What is the meaning of life?"),
+    ]
+    results = await llm.call(messages)
+    assert results.reasoning_content
+
+
+
