@@ -20,7 +20,12 @@ class CostTracker:
         self.report_every_usd = 1.0
 
     def record(
-        self, response: litellm.ModelResponse | litellm.types.utils.EmbeddingResponse
+        self,
+        response: (
+            litellm.ModelResponse
+            | litellm.types.utils.EmbeddingResponse
+            | litellm.types.utils.ModelResponseStream
+        ),
     ) -> None:
         self.lifetime_cost_usd += litellm.cost_calculator.completion_cost(
             completion_response=response

@@ -26,11 +26,10 @@ dependencies = [
     "coredis",
     "fhaviary>=0.14.0",  # For multi-image support
     "limits",
+    "litellm>=1.59.3",
     "pydantic~=2.0,>=2.10.1,<2.10.2",
     "tiktoken>=0.4.0",
     "typing-extensions; python_version <= '3.11'",  # for typing.override
-    'litellm; python_version < "3.13"',  # NOTE: paper-qa==5.3 doesn't support 3.13 yet
-    'litellm>=1.49.1; python_version >= "3.13"',  # For removal of imghdr
 ]
 description = "A client to provide LLM responses for FutureHouse applications."
 dynamic = ["version"]
@@ -60,6 +59,7 @@ dev = [
     "pytest>=8",  # Pin to keep recent
     "python-dotenv",
     "refurb>=2",  # Pin to keep recent
+    "typeguard",
 ]
 local = [
     "numpy",
@@ -238,7 +238,7 @@ min-similarity-lines = 12
 [tool.pytest.ini_options]
 # Add the specified OPTS to the set of command line arguments as if they had been
 # specified by the user.
-addopts = "--doctest-modules"
+addopts = "--doctest-modules --typeguard-packages=llmclient"
 # Sets a list of filters and actions that should be taken for matched warnings.
 # By default all warnings emitted during the test session will be displayed in
 # a summary at the end of the test session.

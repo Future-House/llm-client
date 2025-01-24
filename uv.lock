@@ -1,10 +1,8 @@
 version = 1
 requires-python = ">=3.11"
 resolution-markers = [
-    "python_full_version >= '3.13' and platform_python_implementation == 'PyPy'",
-    "python_full_version >= '3.13' and platform_python_implementation != 'PyPy'",
-    "python_full_version == '3.12.*' and platform_python_implementation == 'PyPy'",
-    "python_full_version == '3.12.*' and platform_python_implementation != 'PyPy'",
+    "python_full_version >= '3.12' and platform_python_implementation == 'PyPy'",
+    "python_full_version >= '3.12' and platform_python_implementation != 'PyPy'",
     "python_full_version < '3.12' and platform_python_implementation != 'PyPy'",
     "python_full_version < '3.12' and platform_python_implementation == 'PyPy'",
 ]
@@ -537,7 +535,7 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.0.11.dev12+g069526c.d20250123"
+version = "0.0.11.dev3+ge27c993.d20250123"
 source = { editable = "." }
 dependencies = [
     { name = "coredis" },
@@ -572,6 +570,7 @@ dev = [
     { name = "python-dotenv" },
     { name = "refurb" },
     { name = "sentence-transformers" },
+    { name = "typeguard" },
 ]
 local = [
     { name = "numpy" },
@@ -595,8 +594,7 @@ requires-dist = [
     { name = "fhaviary", extras = ["xml"], marker = "extra == 'dev'" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "limits" },
-    { name = "litellm", marker = "python_full_version < '3.13'" },
-    { name = "litellm", marker = "python_full_version >= '3.13'", specifier = ">=1.49.1" },
+    { name = "litellm", specifier = ">=1.59.3" },
     { name = "litellm", marker = "extra == 'deepseek'", specifier = ">1.59.3" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
     { name = "numpy", marker = "extra == 'local'" },
@@ -615,6 +613,7 @@ requires-dist = [
     { name = "refurb", marker = "extra == 'dev'", specifier = ">=2" },
     { name = "sentence-transformers", marker = "extra == 'local'" },
     { name = "tiktoken", specifier = ">=0.4.0" },
+    { name = "typeguard", marker = "extra == 'dev'" },
     { name = "typing-extensions", marker = "python_full_version < '3.12'" },
 ]
 
@@ -2676,11 +2675,23 @@ name = "triton"
 version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "filelock", marker = "python_full_version < '3.13'" },
+    { name = "filelock" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/86/17/d9a5cf4fcf46291856d1e90762e36cbabd2a56c7265da0d1d9508c8e3943/triton-3.1.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0f34f6e7885d1bf0eaaf7ba875a5f0ce6f3c13ba98f9503651c1e6dc6757ed5c", size = 209506424 },
     { url = "https://files.pythonhosted.org/packages/78/eb/65f5ba83c2a123f6498a3097746607e5b2f16add29e36765305e4ac7fdd8/triton-3.1.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c8182f42fd8080a7d39d666814fa36c5e30cc00ea7eeeb1a2983dbb4c99a0fdc", size = 209551444 },
+]
+
+[[package]]
+name = "typeguard"
+version = "4.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/62/c3/400917dd37d7b8c07e9723f3046818530423e1e759a56a22133362adab00/typeguard-4.4.1.tar.gz", hash = "sha256:0d22a89d00b453b47c49875f42b6601b961757541a2e1e0ef517b6e24213c21b", size = 74959 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f2/53/9465dedf2d69fe26008e7732cf6e0a385e387c240869e7d54eed49782a3c/typeguard-4.4.1-py3-none-any.whl", hash = "sha256:9324ec07a27ec67fc54a9c063020ca4c0ae6abad5e9f0f9804ca59aee68c6e21", size = 35635 },
 ]
 
 [[package]]

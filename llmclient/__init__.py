@@ -20,12 +20,10 @@ from .llms import (
     CommonLLMNames,
     LiteLLMModel,
     LLMModel,
-    MultipleCompletionLLMModel,
     sum_logprobs,
     validate_json_completion,
 )
 from .types import (
-    Chunk,
     Embeddable,
     LLMResult,
 )
@@ -38,7 +36,6 @@ __all__ = [
     "EXTRA_TOKENS_FROM_USER_ROLE",
     "GLOBAL_COST_TRACKER",
     "MODEL_COST_MAP",
-    "Chunk",
     "CommonLLMNames",
     "Embeddable",
     "EmbeddingModel",
@@ -49,7 +46,6 @@ __all__ = [
     "LLMResult",
     "LiteLLMEmbeddingModel",
     "LiteLLMModel",
-    "MultipleCompletionLLMModel",
     "SentenceTransformerEmbeddingModel",
     "SparseEmbeddingModel",
     "configure_llm_logs",

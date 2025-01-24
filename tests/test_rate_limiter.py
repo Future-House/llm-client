@@ -9,59 +9,62 @@ from limits import RateLimitItemPerSecond
 
 from llmclient.constants import CHARACTERS_PER_TOKEN_ASSUMPTION
 from llmclient.embeddings import LiteLLMEmbeddingModel
-from llmclient.llms import (
-    Chunk,
-    LiteLLMModel,
-)
+from llmclient.llms import CommonLLMNames, LiteLLMModel
 from llmclient.types import LLMResult
 
 LLM_CONFIG_W_RATE_LIMITS = [
     # following ensures that "short-form" rate limits are also supported
     # where the user doesn't specify the model_list
     {
-        "name": "gpt-4o-mini",
+        "name": CommonLLMNames.OPENAI_TEST.value,
         "config": {
-            "rate_limit": {"gpt-4o-mini": RateLimitItemPerSecond(20, 3)},
+            "rate_limit": {
+                CommonLLMNames.OPENAI_TEST.value: RateLimitItemPerSecond(20, 3)
+            },
         },
     },
     {
-        "name": "gpt-4o-mini",
+        "name": CommonLLMNames.OPENAI_TEST.value,
         "config": {
             "model_list": [
                 {
-                    "model_name": "gpt-4o-mini",
+                    "model_name": CommonLLMNames.OPENAI_TEST.value,
                     "litellm_params": {
-                        "model": "gpt-4o-mini",
+                        "model": CommonLLMNames.OPENAI_TEST.value,
                         "temperature": 0,
                     },
                 }
             ],
-            "rate_limit": {"gpt-4o-mini": RateLimitItemPerSecond(20, 1)},
+            "rate_limit": {
+                CommonLLMNames.OPENAI_TEST.value: RateLimitItemPerSecond(20, 1)
+            },
         },
     },
     {
-        "name": "gpt-4o-mini",
+        "name": CommonLLMNames.OPENAI_TEST.value,
         "config": {
             "model_list": [
                 {
-                    "model_name": "gpt-4o-mini",
+                    "model_name": CommonLLMNames.OPENAI_TEST.value,
                     "litellm_params": {
-                        "model": "gpt-4o-mini",
+                        "model": CommonLLMNames.OPENAI_TEST.value,
                         "temperature": 0,
                     },
                 }
             ],
-            "rate_limit": {"gpt-4o-mini": RateLimitItemPerSecond(1_000_000, 1)},
+            "rate_limit": {
+                CommonLLMNames.OPENAI_TEST.value: RateLimitItemPerSecond(1_000_000, 1)
+            },
         },
     },
     {
-        "name": "gpt-4o-mini",
+        "name": CommonLLMNames.OPENAI_TEST.value,
         "config": {
             "model_list": [
                 {
-                    "model_name": "gpt-4o-mini",
+                    "model_name": CommonLLMNames.OPENAI_TEST.value,
                     "litellm_params": {
-                        "model": "gpt-4o-mini",
+                        "model": CommonLLMNames.OPENAI_TEST.value,
                         "temperature": 0,
                     },
                 }
@@ -74,21 +77,13 @@ RATE_LIMITER_PROMPT = "Animals make many noises. The duck says"
 
 LLM_METHOD_AND_INPUTS = [
     {
-        "method": "acomplete",
-        "kwargs": {"prompt": RATE_LIMITER_PROMPT},
-    },
-    {
-        "method": "acomplete_iter",
-        "kwargs": {"prompt": RATE_LIMITER_PROMPT},
-    },
-    {
-        "method": "achat",
+        "method": "acompletion",
         "kwargs": {
             "messages": [Message.create_message(role="user", text=RATE_LIMITER_PROMPT)]
         },
     },
     {
-        "method": "achat_iter",
+        "method": "acompletion_iter",
         "kwargs": {
             "messages": [Message.create_message(role="user", text=RATE_LIMITER_PROMPT)]
         },
@@ -136,13 +131,13 @@ async def time_n_llm_methods(
     character_count = 0
     token_count = 0
 
-    if isinstance(outputs[0], Chunk | LLMResult):
+    if isinstance(outputs[0], LLMResult):
         character_count = sum(len(o.text or "") for o in outputs)
     else:
         character_count = sum(len(o) for o in outputs)
 
-    if hasattr(outputs[0], "prompt_tokens"):
-        token_count = sum(o.prompt_tokens + o.completion_tokens for o in outputs)
+    if hasattr(outputs[0], "prompt_count"):
+        token_count = sum(o.prompt_count + o.completion_count for o in outputs)
 
     return (
         (character_count / CHARACTERS_PER_TOKEN_ASSUMPTION)
@@ -153,7 +148,7 @@ async def time_n_llm_methods(
 
 @pytest.mark.parametrize("llm_config_w_rate_limits", LLM_CONFIG_W_RATE_LIMITS)
 @pytest.mark.asyncio
-async def test_rate_limit_on_run_prompt(
+async def test_rate_limit_on_call_single(
     llm_config_w_rate_limits: dict[str, Any],
 ) -> None:
 
@@ -164,20 +159,26 @@ async def test_rate_limit_on_run_prompt(
     def accum(x) -> None:
         outputs.append(x)
 
+    prompt = "The {animal} says"
+    data = {"animal": "duck"}
+    system_prompt = "You are a helpful assistant."
+    messages = [
+        Message(role="system", content=system_prompt),
+        Message(role="user", content=prompt.format(**data)),
+    ]
+
     estimated_tokens_per_second = await time_n_llm_methods(
         llm,
-        "run_prompt",
+        "call_single",
         3,
-        prompt="The {animal} says",
-        data={"animal": "duck"},
-        system_prompt=None,
+        messages=messages,
         callbacks=[accum],
     )
 
     if "rate_limit" in llm.config:
         max_tokens_per_second = (
-            llm.config["rate_limit"]["gpt-4o-mini"].amount
-            / llm.config["rate_limit"]["gpt-4o-mini"].multiples
+            llm.config["rate_limit"][CommonLLMNames.OPENAI_TEST.value].amount
+            / llm.config["rate_limit"][CommonLLMNames.OPENAI_TEST.value].multiples
         )
         assert estimated_tokens_per_second / max_tokens_per_second < (
             1.0 + ACCEPTABLE_RATE_LIMIT_ERROR
@@ -192,19 +193,17 @@ async def test_rate_limit_on_run_prompt(
 
     estimated_tokens_per_second = await time_n_llm_methods(
         llm,
-        "run_prompt",
+        "call_single",
         3,
         use_gather=True,
-        prompt="The {animal} says",
-        data={"animal": "duck"},
-        system_prompt=None,
+        messages=messages,
         callbacks=[accum2],
     )
 
     if "rate_limit" in llm.config:
         max_tokens_per_second = (
-            llm.config["rate_limit"]["gpt-4o-mini"].amount
-            / llm.config["rate_limit"]["gpt-4o-mini"].multiples
+            llm.config["rate_limit"][CommonLLMNames.OPENAI_TEST.value].amount
+            / llm.config["rate_limit"][CommonLLMNames.OPENAI_TEST.value].multiples
         )
         assert estimated_tokens_per_second / max_tokens_per_second < (
             1.0 + ACCEPTABLE_RATE_LIMIT_ERROR
@@ -233,8 +232,8 @@ async def test_rate_limit_on_sequential_completion_litellm_methods(
     )
     if "rate_limit" in llm.config:
         max_tokens_per_second = (
-            llm.config["rate_limit"]["gpt-4o-mini"].amount
-            / llm.config["rate_limit"]["gpt-4o-mini"].multiples
+            llm.config["rate_limit"][CommonLLMNames.OPENAI_TEST.value].amount
+            / llm.config["rate_limit"][CommonLLMNames.OPENAI_TEST.value].multiples
         )
         assert estimated_tokens_per_second / max_tokens_per_second < (
             1.0 + ACCEPTABLE_RATE_LIMIT_ERROR
@@ -264,8 +263,8 @@ async def test_rate_limit_on_parallel_completion_litellm_methods(
         )
         if "rate_limit" in llm.config:
             max_tokens_per_second = (
-                llm.config["rate_limit"]["gpt-4o-mini"].amount
-                / llm.config["rate_limit"]["gpt-4o-mini"].multiples
+                llm.config["rate_limit"][CommonLLMNames.OPENAI_TEST.value].amount
+                / llm.config["rate_limit"][CommonLLMNames.OPENAI_TEST.value].multiples
             )
             assert estimated_tokens_per_second / max_tokens_per_second < (
                 1.0 + ACCEPTABLE_RATE_LIMIT_ERROR
