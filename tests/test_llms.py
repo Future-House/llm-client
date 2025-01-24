@@ -577,12 +577,8 @@ async def test_deepseek_model():
     for result in results:
         assert result.reasoning_content
 
-    outputs = []
-
-    def accum(x) -> None:
-        outputs.append(x)
-
-    results = await llm.call(messages, callbacks=[accum])
+    outputs: list[str] = []
+    results = await llm.call(messages, callbacks=[outputs.append])
     for result in results:
         # TODO: Litellm is not populating provider_specific_fields in streaming mode.
         # https://github.com/BerriAI/litellm/issues/7942
