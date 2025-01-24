@@ -8,8 +8,7 @@ from aviary.core import Message
 from llmclient import cost_tracking_ctx
 from llmclient.cost_tracker import GLOBAL_COST_TRACKER
 from llmclient.embeddings import LiteLLMEmbeddingModel
-from llmclient.llms import CommonLLMNames, LiteLLMModel, MultipleCompletionLLMModel
-from llmclient.types import LLMResult
+from llmclient.llms import CommonLLMNames, LiteLLMModel
 
 from .conftest import VCR_DEFAULT_MATCH_ON
 
@@ -38,35 +37,35 @@ class TestLiteLLMModel:
         [
             pytest.param(
                 {
-                    "model_name": "gpt-4o-mini",
+                    "model_name": CommonLLMNames.OPENAI_TEST.value,
                     "model_list": [
                         {
-                            "model_name": "gpt-4o-mini",
+                            "model_name": CommonLLMNames.OPENAI_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-4o-mini",
+                                "model": CommonLLMNames.OPENAI_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
                             },
                         }
                     ],
                 },
-                id="chat-model",
+                id="OpenAI-model",
             ),
             pytest.param(
                 {
-                    "model_name": "gpt-3.5-turbo-instruct",
+                    "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
                     "model_list": [
                         {
-                            "model_name": "gpt-3.5-turbo-instruct",
+                            "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-3.5-turbo-instruct",
+                                "model": CommonLLMNames.ANTHROPIC_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
                             },
                         }
                     ],
                 },
-                id="completion-model",
+                id="Anthropic-model",
             ),
         ],
     )
@@ -87,7 +86,7 @@ class TestLiteLLMModel:
 
         with cost_tracking_ctx():
             with assert_costs_increased():
-                llm = LiteLLMModel(name="gpt-4o")
+                llm = LiteLLMModel(name=CommonLLMNames.GPT_4O.value)
                 image = np.zeros((32, 32, 3), dtype=np.uint8)
                 image[:] = [255, 0, 0]
                 messages = [
@@ -117,9 +116,9 @@ class TestLiteLLMModel:
                 {
                     "model_list": [
                         {
-                            "model_name": "gpt-4o-mini",
+                            "model_name": CommonLLMNames.OPENAI_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-4o-mini",
+                                "model": CommonLLMNames.OPENAI_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
                             },
@@ -138,72 +137,24 @@ class TestLiteLLMModel:
         ],
     )
     @pytest.mark.asyncio
-    async def test_run_prompt(self, config: dict[str, Any]) -> None:
+    async def test_call_single(self, config: dict[str, Any]) -> None:
         with cost_tracking_ctx(), assert_costs_increased():
-            llm = LiteLLMModel(name="gpt-4o-mini", config=config)
+            llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
 
             outputs = []
 
             def accum(x) -> None:
                 outputs.append(x)
 
-            await llm.run_prompt(
-                prompt="The {animal} says",
-                data={"animal": "duck"},
-                system_prompt=None,
+            prompt = "The {animal} says"
+            data = {"animal": "duck"}
+            system_prompt = "You are a helpful assistant."
+            messages = [
+                Message(role="system", content=system_prompt),
+                Message(role="user", content=prompt.format(**data)),
+            ]
+
+            await llm.call_single(
+                messages=messages,
                 callbacks=[accum],
-            )
-
-
-class TestMultipleCompletionLLMModel:
-    async def call_model(
-        self, model: MultipleCompletionLLMModel, *args, **kwargs
-    ) -> list[LLMResult]:
-        return await model.call(*args, **kwargs)
-
-    @pytest.mark.parametrize(
-        "model_name", ["gpt-3.5-turbo", CommonLLMNames.ANTHROPIC_TEST.value]
-    )
-    @pytest.mark.asyncio
-    async def test_achat(self, model_name: str) -> None:
-        with cost_tracking_ctx():
-            with assert_costs_increased():
-                model = MultipleCompletionLLMModel(name=model_name)
-                await model.achat(
-                    messages=[
-                        Message(content="What are three things I should do today?"),
-                    ]
-                )
-
-            with assert_costs_increased():
-                async for _ in await model.achat_iter(
-                    messages=[
-                        Message(content="What are three things I should do today?"),
-                    ]
-                ):
-                    pass
-
-    @pytest.mark.parametrize("model_name", [CommonLLMNames.OPENAI_TEST.value])
-    @pytest.mark.asyncio
-    @pytest.mark.vcr
-    async def test_text_image_message(self, model_name: str) -> None:
-        with cost_tracking_ctx(), assert_costs_increased():
-            model = MultipleCompletionLLMModel(name=model_name, config={"n": 2})
-
-            # An RGB image of a red square
-            image = np.zeros((32, 32, 3), dtype=np.uint8)
-            # (255 red, 0 green, 0 blue) is maximum red in RGB
-            image[:] = [255, 0, 0]
-
-            await self.call_model(
-                model,
-                messages=[
-                    Message.create_message(
-                        text=(
-                            "What color is this square? Respond only with the color"
-                            " name."
-                        ),
-                        images=image,
-                    )
-                ],
             )

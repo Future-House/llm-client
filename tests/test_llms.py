@@ -1,5 +1,6 @@
 import pathlib
 import pickle
+from collections.abc import AsyncIterator
 from typing import Any, ClassVar
 from unittest.mock import Mock, patch
 
@@ -11,10 +12,8 @@ from pydantic import BaseModel, Field, TypeAdapter, computed_field
 
 from llmclient.exceptions import JSONSchemaValidationError
 from llmclient.llms import (
-    Chunk,
     CommonLLMNames,
     LiteLLMModel,
-    MultipleCompletionLLMModel,
     validate_json_completion,
 )
 from llmclient.types import LLMResult
@@ -28,35 +27,36 @@ class TestLiteLLMModel:
         [
             pytest.param(
                 {
-                    "model_name": "gpt-4o-mini",
+                    "model_name": CommonLLMNames.OPENAI_TEST.value,
                     "model_list": [
                         {
-                            "model_name": "gpt-4o-mini",
+                            "model_name": CommonLLMNames.OPENAI_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-4o-mini",
+                                "model": CommonLLMNames.OPENAI_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
+                                "logprobs": True,
                             },
                         }
                     ],
                 },
-                id="chat-model",
+                id="OpenAI-model",
             ),
             pytest.param(
                 {
-                    "model_name": "gpt-3.5-turbo-instruct",
+                    "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
                     "model_list": [
                         {
-                            "model_name": "gpt-3.5-turbo-instruct",
+                            "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-3.5-turbo-instruct",
+                                "model": CommonLLMNames.ANTHROPIC_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
                             },
                         }
                     ],
                 },
-                id="completion-model",
+                id="Anthropic-model",
             ),
         ],
     )
@@ -68,17 +68,25 @@ class TestLiteLLMModel:
             Message(role="user", content="What is the meaning of the universe?"),
         ]
         results = await llm.call(messages)
-        assert isinstance(results.prompt, list)
-        assert isinstance(results.prompt[1], Message)
-        assert all(isinstance(msg, Message) for msg in results.prompt)
-        assert len(results.prompt) == 2
-        assert results.prompt[1].content
-        assert results.text
+        assert isinstance(results, list)
 
-    # @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
+        result = results[0]
+        assert isinstance(result, LLMResult)
+        assert isinstance(result.prompt, list)
+        assert isinstance(result.prompt[1], Message)
+        assert all(isinstance(msg, Message) for msg in result.prompt)
+        assert len(result.prompt) == 2  # role + user messages
+        assert result.prompt[1].content
+        assert result.text
+        assert result.logprob is None or result.logprob <= 0
+
+        result = await llm.call_single(messages)
+        assert isinstance(result, LLMResult)
+
+    # @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON])
     @pytest.mark.asyncio
     async def test_call_w_figure(self) -> None:
-        llm = LiteLLMModel(name="gpt-4o")
+        llm = LiteLLMModel(name=CommonLLMNames.GPT_4O.value)
         image = np.zeros((32, 32, 3), dtype=np.uint8)
         image[:] = [255, 0, 0]
         messages = [
@@ -90,34 +98,42 @@ class TestLiteLLMModel:
                 text="What color is this square? Show me your chain of reasoning.",
                 images=image,
             ),
-        ]  # TODO: It's not decoding the image. It's trying to guess the color from the encoded image string.
+        ]
         results = await llm.call(messages)
-        assert isinstance(results.prompt, list)
-        assert all(isinstance(msg, Message) for msg in results.prompt)
-        assert isinstance(results.prompt[1], Message)
-        assert len(results.prompt) == 2
-        assert results.prompt[1].content
-        assert "red" in results.text.lower()
-        assert results.seconds_to_last_token > 0
-        assert results.prompt_count > 0
-        assert results.completion_count > 0
-        assert results.cost > 0
+        assert isinstance(results, list)
+        for result in results:
+            assert isinstance(result, LLMResult)
+            assert isinstance(result.prompt, list)
+            assert all(isinstance(msg, Message) for msg in result.prompt)
+            assert isinstance(result.prompt[1], Message)
+            assert len(result.prompt) == 2
+            assert result.prompt[1].content
+            assert isinstance(result.text, str)
+            assert "red" in result.text.lower()
+            assert result.seconds_to_last_token > 0
+            assert result.prompt_count > 0
+            assert result.completion_count > 0
+            assert result.cost > 0
 
         # Also test with a callback
         async def ac(x) -> None:
             pass
 
         results = await llm.call(messages, [ac])
-        assert isinstance(results.prompt, list)
-        assert all(isinstance(msg, Message) for msg in results.prompt)
-        assert isinstance(results.prompt[1], Message)
-        assert len(results.prompt) == 2
-        assert results.prompt[1].content
-        assert "red" in results.text.lower()
-        assert results.seconds_to_first_token > 0
-        assert results.prompt_count > 0
-        assert results.completion_count > 0
-        assert results.cost > 0
+        assert isinstance(results, list)
+        for result in results:
+            assert isinstance(result, LLMResult)
+            assert isinstance(result.prompt, list)
+            assert all(isinstance(msg, Message) for msg in result.prompt)
+            assert isinstance(result.prompt[1], Message)
+            assert len(result.prompt) == 2
+            assert result.prompt[1].content
+            assert isinstance(result.text, str)
+            assert "red" in result.text.lower()
+            assert result.seconds_to_last_token > 0
+            assert result.prompt_count > 0
+            assert result.completion_count > 0
+            assert result.cost > 0
 
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.parametrize(
@@ -125,16 +141,18 @@ class TestLiteLLMModel:
         [
             pytest.param(
                 {
+                    "model_name": CommonLLMNames.OPENAI_TEST.value,
                     "model_list": [
                         {
-                            "model_name": "gpt-4o-mini",
+                            "model_name": CommonLLMNames.OPENAI_TEST.value,
                             "litellm_params": {
-                                "model": "gpt-4o-mini",
+                                "model": CommonLLMNames.OPENAI_TEST.value,
                                 "temperature": 0,
                                 "max_tokens": 56,
+                                "logprobs": True,
                             },
                         }
-                    ]
+                    ],
                 },
                 id="with-router",
             ),
@@ -148,33 +166,36 @@ class TestLiteLLMModel:
         ],
     )
     @pytest.mark.asyncio
-    async def test_run_prompt(self, config: dict[str, Any]) -> None:
-        llm = LiteLLMModel(name="gpt-4o-mini", config=config)
+    async def test_call_single(self, config: dict[str, Any]) -> None:
+        llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
 
         outputs = []
 
         def accum(x) -> None:
             outputs.append(x)
 
-        completion = await llm.run_prompt(
-            prompt="The {animal} says",
-            data={"animal": "duck"},
-            system_prompt=None,
+        prompt = "The {animal} says"
+        data = {"animal": "duck"}
+        system_prompt = "You are a helpful assistant."
+        messages = [
+            Message(role="system", content=system_prompt),
+            Message(role="user", content=prompt.format(**data)),
+        ]
+
+        completion = await llm.call_single(
+            messages=messages,
             callbacks=[accum],
         )
-        assert completion.model == "gpt-4o-mini"
-        assert completion.seconds_to_first_token > 0
+        assert completion.model == CommonLLMNames.OPENAI_TEST.value
+        assert completion.seconds_to_last_token > 0
         assert completion.prompt_count > 0
         assert completion.completion_count > 0
         assert str(completion) == "".join(outputs)
         assert completion.cost > 0
 
-        completion = await llm.run_prompt(
-            prompt="The {animal} says",
-            data={"animal": "duck"},
-            system_prompt=None,
+        completion = await llm.call_single(
+            messages=messages,
         )
-        assert completion.seconds_to_first_token == 0
         assert completion.seconds_to_last_token > 0
         assert completion.cost > 0
 
@@ -182,10 +203,8 @@ class TestLiteLLMModel:
         async def ac(x) -> None:
             pass
 
-        completion = await llm.run_prompt(
-            prompt="The {animal} says",
-            data={"animal": "duck"},
-            system_prompt=None,
+        completion = await llm.call_single(
+            messages=messages,
             callbacks=[accum, ac],
         )
         assert completion.cost > 0
@@ -198,8 +217,11 @@ class TestLiteLLMModel:
                 {
                     "model_list": [
                         {
-                            "model_name": "gpt-4o-mini",
-                            "litellm_params": {"model": "gpt-4o-mini", "max_tokens": 3},
+                            "model_name": CommonLLMNames.OPENAI_TEST.value,
+                            "litellm_params": {
+                                "model": CommonLLMNames.OPENAI_TEST.value,
+                                "max_tokens": 3,
+                            },
                         }
                     ]
                 },
@@ -217,32 +239,35 @@ class TestLiteLLMModel:
     async def test_max_token_truncation(
         self, config: dict[str, Any], bypassed_router: bool
     ) -> None:
-        llm = LiteLLMModel(name="gpt-4o-mini", config=config)
+        llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
         with patch(
-            "litellm.Router.atext_completion",
-            side_effect=litellm.Router.atext_completion,
+            "litellm.Router.acompletion",
+            side_effect=litellm.Router.acompletion,
             autospec=True,
-        ) as mock_atext_completion:
-            chunk = await llm.acomplete("Please tell me a story")  # type: ignore[call-arg]
+        ) as mock_completion:
+            completions = await llm.acompletion(
+                [Message(role="user", content="Please tell me a story")]
+            )
         if bypassed_router:
-            mock_atext_completion.assert_not_awaited()
+            mock_completion.assert_not_awaited()
         else:
-            mock_atext_completion.assert_awaited_once()
-        assert isinstance(chunk, Chunk)
-        assert chunk.completion_tokens == 3
-        assert chunk.text
-        assert len(chunk.text) < 20
+            mock_completion.assert_awaited_once()
+        assert isinstance(completions, list)
+        completion = completions[0]
+        assert completion.completion_count == 3
+        assert completion.text
+        assert len(completion.text) < 20
 
     def test_pickling(self, tmp_path: pathlib.Path) -> None:
         pickle_path = tmp_path / "llm_model.pickle"
         llm = LiteLLMModel(
-            name="gpt-4o-mini",
+            name=CommonLLMNames.OPENAI_TEST.value,
             config={
                 "model_list": [
                     {
-                        "model_name": "gpt-4o-mini",
+                        "model_name": CommonLLMNames.OPENAI_TEST.value,
                         "litellm_params": {
-                            "model": "gpt-4o-mini",
+                            "model": CommonLLMNames.OPENAI_TEST.value,
                             "temperature": 0,
                             "max_tokens": 56,
                         },
@@ -269,40 +294,47 @@ class DummyOutputSchema(BaseModel):
         return f"{self.name}, {self.age}"
 
 
-class TestMultipleCompletionLLMModel:
+class TestMultipleCompletion:
     NUM_COMPLETIONS: ClassVar[int] = 2
     DEFAULT_CONFIG: ClassVar[dict] = {"n": NUM_COMPLETIONS}
-    MODEL_CLS: ClassVar[type[MultipleCompletionLLMModel]] = MultipleCompletionLLMModel
+    MODEL_CLS: ClassVar[type[LiteLLMModel]] = LiteLLMModel
 
-    async def call_model(
-        self, model: MultipleCompletionLLMModel, *args, **kwargs
-    ) -> list[LLMResult]:
+    async def call_model(self, model: LiteLLMModel, *args, **kwargs) -> list[LLMResult]:
         return await model.call(*args, **kwargs)
 
     @pytest.mark.parametrize(
-        "model_name", ["gpt-3.5-turbo", CommonLLMNames.ANTHROPIC_TEST.value]
+        "model_name",
+        [CommonLLMNames.GPT_35_TURBO.value, CommonLLMNames.ANTHROPIC_TEST.value],
     )
     @pytest.mark.asyncio
-    async def test_achat(self, model_name: str) -> None:
-        model = MultipleCompletionLLMModel(name=model_name)
-        response = await model.achat(
-            messages=[
-                Message(content="What are three things I should do today?"),
-            ]
-        )
+    async def test_acompletion(self, model_name: str) -> None:
+        model = self.MODEL_CLS(name=model_name)
+        messages = [
+            Message(content="What are three things I should do today?"),
+        ]
+        response = await model.acompletion(messages)
 
-        assert len(response.choices) == 1
+        assert isinstance(response, list)
+        assert len(response) == 1
+        assert isinstance(response[0], LLMResult)
 
-        # Check we can iterate through the response
-        async for chunk in await model.achat_iter(
-            messages=[
-                Message(content="What are three things I should do today?"),
-            ]
-        ):
-            assert len(chunk.choices) == 1
+    @pytest.mark.parametrize(
+        "model_name",
+        [CommonLLMNames.OPENAI_TEST.value, CommonLLMNames.ANTHROPIC_TEST.value],
+    )
+    @pytest.mark.asyncio
+    async def test_acompletion_iter(self, model_name: str) -> None:
+        model = self.MODEL_CLS(name=model_name)
+        messages = [Message(content="What are three things I should do today?")]
+        responses = await model.acompletion_iter(messages)
+        assert isinstance(responses, AsyncIterator)
+
+        async for response in responses:
+            assert isinstance(response, LLMResult)
+            assert isinstance(response.prompt, list)
 
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
-    @pytest.mark.parametrize("model_name", ["gpt-3.5-turbo"])
+    @pytest.mark.parametrize("model_name", [CommonLLMNames.GPT_35_TURBO.value])
     @pytest.mark.asyncio
     async def test_model(self, model_name: str) -> None:
         # Make model_name an arg so that TestLLMModel can parametrize it
@@ -322,7 +354,8 @@ class TestMultipleCompletionLLMModel:
             assert result.logprob is None or result.logprob <= 0
 
     @pytest.mark.parametrize(
-        "model_name", [CommonLLMNames.ANTHROPIC_TEST.value, "gpt-3.5-turbo"]
+        "model_name",
+        [CommonLLMNames.ANTHROPIC_TEST.value, CommonLLMNames.GPT_35_TURBO.value],
     )
     @pytest.mark.asyncio
     async def test_streaming(self, model_name: str) -> None:
@@ -352,7 +385,9 @@ class TestMultipleCompletionLLMModel:
             """
 
         results = await self.call_model(
-            self.MODEL_CLS(name="gpt-3.5-turbo", config=self.DEFAULT_CONFIG),
+            self.MODEL_CLS(
+                name=CommonLLMNames.GPT_35_TURBO.value, config=self.DEFAULT_CONFIG
+            ),
             messages=[Message(content="Please win.")],
             tools=[Tool.from_function(play)],
         )
@@ -369,12 +404,20 @@ class TestMultipleCompletionLLMModel:
     @pytest.mark.parametrize(
         ("model_name", "output_type"),
         [
-            pytest.param("gpt-3.5-turbo", DummyOutputSchema, id="json-mode-base-model"),
             pytest.param(
-                "gpt-4o", TypeAdapter(DummyOutputSchema), id="json-mode-type-adapter"
+                CommonLLMNames.GPT_35_TURBO.value,
+                DummyOutputSchema,
+                id="json-mode-base-model",
             ),
             pytest.param(
-                "gpt-4o", DummyOutputSchema.model_json_schema(), id="structured-outputs"
+                CommonLLMNames.GPT_4O.value,
+                TypeAdapter(DummyOutputSchema),
+                id="json-mode-type-adapter",
+            ),
+            pytest.param(
+                CommonLLMNames.GPT_4O.value,
+                DummyOutputSchema.model_json_schema(),
+                id="structured-outputs",
             ),
         ],
     )
@@ -427,7 +470,8 @@ class TestMultipleCompletionLLMModel:
             assert "red" in result.messages[-1].content.lower()
 
     @pytest.mark.parametrize(
-        "model_name", [CommonLLMNames.ANTHROPIC_TEST.value, "gpt-3.5-turbo"]
+        "model_name",
+        [CommonLLMNames.ANTHROPIC_TEST.value, CommonLLMNames.GPT_35_TURBO.value],
     )
     @pytest.mark.asyncio
     @pytest.mark.vcr
@@ -503,3 +547,41 @@ def test_json_schema_validation() -> None:
     with pytest.raises(JSONSchemaValidationError):
         validate_json_completion(mock_completion2, DummyModel)
     validate_json_completion(mock_completion3, DummyModel)
+
+
+@pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
+@pytest.mark.asyncio
+async def test_deepseek_model():
+    llm = LiteLLMModel(
+        name="deepseek/deepseek-reasoner",
+        config={
+            "model_list": [
+                {
+                    "model_name": "deepseek/deepseek-reasoner",
+                    "litellm_params": {
+                        "model": "deepseek/deepseek-reasoner",
+                        "api_base": "https://api.deepseek.com/v1",
+                    },
+                }
+            ]
+        },
+    )
+    messages = [
+        Message(
+            role="system",
+            content="Think deeply about the following question and answer it.",
+        ),
+        Message(content="What is the meaning of life?"),
+    ]
+    results = await llm.call(messages)
+    for result in results:
+        assert result.reasoning_content
+
+    outputs: list[str] = []
+    results = await llm.call(messages, callbacks=[outputs.append])
+    for result in results:
+        # TODO: Litellm is not populating provider_specific_fields in streaming mode.
+        # https://github.com/BerriAI/litellm/issues/7942
+        # I'm keeping this test as a reminder to fix this.
+        # once the issue is fixed.
+        assert not result.reasoning_content

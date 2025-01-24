@@ -32,17 +32,6 @@ class Embeddable(BaseModel):
     embedding: list[float] | None = Field(default=None, repr=False)
 
 
-class Chunk(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    text: str | None
-    prompt_tokens: int
-    completion_tokens: int
-
-    def __str__(self):
-        return self.text
-
-
 class LLMResult(BaseModel):
     """A class to hold the result of a LLM completion.
 
@@ -73,7 +62,7 @@ class LLMResult(BaseModel):
         default=None,
         description="Optional prompt or list of serialized prompts.",
     )
-    text: str = ""
+    text: str | None = None
     messages: list[Message] | None = Field(
         default=None, description="Messages received from the LLM."
     )
@@ -90,9 +79,12 @@ class LLMResult(BaseModel):
     logprob: float | None = Field(
         default=None, description="Sum of logprobs in the completion."
     )
+    reasoning_content: str | None = Field(
+        default=None, description="Reasoning content from LLMs such as DeepSeek-R1."
+    )
 
     def __str__(self) -> str:
-        return self.text
+        return self.text or ""
 
     @computed_field  # type: ignore[prop-decorator]
     @property

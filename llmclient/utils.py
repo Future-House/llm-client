@@ -45,12 +45,12 @@ def get_litellm_retrying_config(timeout: float = 60.0) -> dict[str, Any]:
 
 
 def prepare_args(
-    func: Callable, chunk: str, name: str | None = None
+    func: Callable, completion: str, name: str | None = None
 ) -> tuple[tuple, dict]:
     with contextlib.suppress(TypeError):
         if "name" in signature(func).parameters:
-            return (chunk,), {"name": name}
-    return (chunk,), {}
+            return (completion,), {"name": name}
+    return (completion,), {}
 
 
 def partial_format(value: str, **formats: dict[str, Any]) -> str:

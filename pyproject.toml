@@ -26,11 +26,10 @@ dependencies = [
     "coredis",
     "fhaviary>=0.14.0",  # For multi-image support
     "limits",
+    "litellm>=1.59.3",
     "pydantic~=2.0,>=2.10.1,<2.10.2",
     "tiktoken>=0.4.0",
     "typing-extensions; python_version <= '3.11'",  # for typing.override
-    'litellm; python_version < "3.13"',  # NOTE: paper-qa==5.3 doesn't support 3.13 yet
-    'litellm>=1.49.1; python_version >= "3.13"',  # For removal of imghdr
 ]
 description = "A client to provide LLM responses for FutureHouse applications."
 dynamic = ["version"]
@@ -40,11 +39,13 @@ readme = "README.md"
 requires-python = ">=3.11"
 
 [project.optional-dependencies]
+deepseek = [
+    "litellm>1.59.3",  # Pin for deepseek-r1 reasoning
+]
 dev = [
-    "fh-llm-client[local]",
+    "fh-llm-client[local, deepseek]",
     "fhaviary[xml]",
     "ipython>=8",  # Pin to keep recent
-    "litellm<1.57.2",  # Pin for Router.acompletion typing break from https://github.com/BerriAI/litellm/pull/7594
     "mypy>=1.8",  # Pin for mutable-override
     "pre-commit>=3.4",  # Pin to keep recent
     "pylint-pydantic",
@@ -58,6 +59,7 @@ dev = [
     "pytest>=8",  # Pin to keep recent
     "python-dotenv",
     "refurb>=2",  # Pin to keep recent
+    "typeguard",
 ]
 local = [
     "numpy",
@@ -236,7 +238,7 @@ min-similarity-lines = 12
 [tool.pytest.ini_options]
 # Add the specified OPTS to the set of command line arguments as if they had been
 # specified by the user.
-addopts = "--doctest-modules"
+addopts = "--doctest-modules --typeguard-packages=llmclient"
 # Sets a list of filters and actions that should be taken for matched warnings.
 # By default all warnings emitted during the test session will be displayed in
 # a summary at the end of the test session.
@@ -281,12 +283,65 @@ preview = true
 [tool.ruff.lint]
 explicit-preview-rules = true
 extend-select = [
+    "AIR301",
+    "AIR302",
+    "AIR303",
+    "ASYNC116",
+    "B901",
+    "B909",
+    "B911",
     "C420",
     "DOC202",
     "DOC403",
+    "DTZ901",
+    "E111",
+    "E112",
+    "E113",
+    "E114",
+    "E115",
+    "E116",
+    "E117",
+    "E201",
+    "E202",
+    "E203",
+    "E204",
+    "E211",
+    "E221",
+    "E222",
+    "E223",
+    "E224",
+    "E225",
+    "E226",
+    "E227",
+    "E228",
+    "E231",
+    "E241",
+    "E242",
+    "E251",
+    "E252",
+    "E261",
+    "E262",
+    "E265",
+    "E266",
+    "E271",
+    "E272",
+    "E273",
+    "E274",
+    "E275",
+    "E301",
+    "E302",
+    "E303",
+    "E304",
+    "E305",
+    "E306",
+    "E502",
+    "FAST003",
+    "FURB101",
+    "FURB103",
     "FURB110",
     "FURB113",
     "FURB116",
+    "FURB118",
     "FURB131",
     "FURB132",
     "FURB140",
@@ -301,10 +356,54 @@ extend-select = [
     "FURB166",
     "FURB171",
     "FURB180",
-    "FURB188",
+    "FURB189",
     "FURB192",
+    "LOG015",
+    "PLC1802",
+    "PLC1901",
+    "PLC2701",
+    "PLC2801",
+    "PLE0304",
+    "PLE1141",
+    "PLE4703",
+    "PLR0202",
+    "PLR0203",
+    "PLR0916",
+    "PLR1733",
+    "PLR6104",
     "PLR6201",
     "PLW0108",
+    "PLW0177",
+    "PLW1507",
+    "PLW3201",
+    "PTH210",
+    "PYI059",
+    "PYI061",
+    "RUF027",
+    "RUF028",
+    "RUF029",
+    "RUF031",
+    "RUF035",
+    "RUF036",
+    "RUF037",
+    "RUF038",
+    "RUF039",
+    "RUF040",
+    "RUF041",
+    "RUF043",
+    "RUF048",
+    "RUF049",
+    "RUF051",
+    "RUF052",
+    "RUF055",
+    "RUF056",
+    "RUF057",
+    "SIM905",
+    "TC007",
+    "TC008",
+    "UP042",
+    "UP044",
+    "W391",
 ]
 external = [
     "FURB",  # refurb
@@ -313,6 +412,7 @@ external = [
 # (e.g.) validating # noqa directives. Useful for retaining # noqa directives
 # that cover plugins not yet implemented by Ruff.
 ignore = [
+    "A005",  # Overly pedantic
     "ANN",  # Don't care to enforce typing
     "ARG002",  # Thrown all the time when we are subclassing
     "ARG003",  # Thrown all the time when we are subclassing
