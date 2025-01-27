@@ -62,7 +62,7 @@ class TestLiteLLMModel:
     )
     @pytest.mark.asyncio
     async def test_call(self, config: dict[str, Any]) -> None:
-        llm = LiteLLMModel(name=config["model_name"], config=config)
+        llm = LiteLLMModel(model=config["model_name"], config=config)
         messages = [
             Message(role="system", content="Respond with single words."),
             Message(role="user", content="What is the meaning of the universe?"),
@@ -86,7 +86,7 @@ class TestLiteLLMModel:
     # @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON])
     @pytest.mark.asyncio
     async def test_call_w_figure(self) -> None:
-        llm = LiteLLMModel(name=CommonLLMNames.GPT_4O.value)
+        llm = LiteLLMModel(model=CommonLLMNames.GPT_4O.value)
         image = np.zeros((32, 32, 3), dtype=np.uint8)
         image[:] = [255, 0, 0]
         messages = [
@@ -167,7 +167,7 @@ class TestLiteLLMModel:
     )
     @pytest.mark.asyncio
     async def test_call_single(self, config: dict[str, Any]) -> None:
-        llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
+        llm = LiteLLMModel(model=CommonLLMNames.OPENAI_TEST.value, config=config)
 
         outputs = []
 
@@ -239,7 +239,7 @@ class TestLiteLLMModel:
     async def test_max_token_truncation(
         self, config: dict[str, Any], bypassed_router: bool
     ) -> None:
-        llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
+        llm = LiteLLMModel(model=CommonLLMNames.OPENAI_TEST.value, config=config)
         with patch(
             "litellm.Router.acompletion",
             side_effect=litellm.Router.acompletion,
@@ -261,7 +261,7 @@ class TestLiteLLMModel:
     def test_pickling(self, tmp_path: pathlib.Path) -> None:
         pickle_path = tmp_path / "llm_model.pickle"
         llm = LiteLLMModel(
-            name=CommonLLMNames.OPENAI_TEST.value,
+            model=CommonLLMNames.OPENAI_TEST.value,
             config={
                 "model_list": [
                     {
@@ -279,7 +279,7 @@ class TestLiteLLMModel:
             pickle.dump(llm, f)
         with pickle_path.open("rb") as f:
             rehydrated_llm = pickle.load(f)
-        assert llm.name == rehydrated_llm.name
+        assert llm.model == rehydrated_llm.model
         assert llm.config == rehydrated_llm.config
         assert llm.router.deployment_names == rehydrated_llm.router.deployment_names
 
@@ -308,7 +308,7 @@ class TestMultipleCompletion:
     )
     @pytest.mark.asyncio
     async def test_acompletion(self, model_name: str) -> None:
-        model = self.MODEL_CLS(name=model_name)
+        model = self.MODEL_CLS(model=model_name)
         messages = [
             Message(content="What are three things I should do today?"),
         ]
@@ -324,7 +324,7 @@ class TestMultipleCompletion:
     )
     @pytest.mark.asyncio
     async def test_acompletion_iter(self, model_name: str) -> None:
-        model = self.MODEL_CLS(name=model_name)
+        model = self.MODEL_CLS(model=model_name)
         messages = [Message(content="What are three things I should do today?")]
         responses = await model.acompletion_iter(messages)
         assert isinstance(responses, AsyncIterator)
@@ -339,7 +339,7 @@ class TestMultipleCompletion:
     async def test_model(self, model_name: str) -> None:
         # Make model_name an arg so that TestLLMModel can parametrize it
         # only testing OpenAI, as other APIs don't support n>1
-        model = self.MODEL_CLS(name=model_name, config=self.DEFAULT_CONFIG)
+        model = self.MODEL_CLS(model=model_name, config=self.DEFAULT_CONFIG)
         messages = [
             Message(role="system", content="Respond with single words."),
             Message(content="Hello, how are you?"),
@@ -359,7 +359,7 @@ class TestMultipleCompletion:
     )
     @pytest.mark.asyncio
     async def test_streaming(self, model_name: str) -> None:
-        model = self.MODEL_CLS(name=model_name, config=self.DEFAULT_CONFIG)
+        model = self.MODEL_CLS(model=model_name, config=self.DEFAULT_CONFIG)
         messages = [
             Message(role="system", content="Respond with single words."),
             Message(content="Hello, how are you?"),
@@ -386,7 +386,7 @@ class TestMultipleCompletion:
 
         results = await self.call_model(
             self.MODEL_CLS(
-                name=CommonLLMNames.GPT_35_TURBO.value, config=self.DEFAULT_CONFIG
+                model=CommonLLMNames.GPT_35_TURBO.value, config=self.DEFAULT_CONFIG
             ),
             messages=[Message(content="Please win.")],
             tools=[Tool.from_function(play)],
@@ -424,7 +424,7 @@ class TestMultipleCompletion:
     async def test_output_schema(
         self, model_name: str, output_type: type[BaseModel] | dict[str, Any]
     ) -> None:
-        model = self.MODEL_CLS(name=model_name, config=self.DEFAULT_CONFIG)
+        model = self.MODEL_CLS(model=model_name, config=self.DEFAULT_CONFIG)
         messages = [
             Message(
                 content=(
@@ -444,7 +444,7 @@ class TestMultipleCompletion:
     @pytest.mark.asyncio
     @pytest.mark.vcr
     async def test_text_image_message(self, model_name: str) -> None:
-        model = self.MODEL_CLS(name=model_name, config=self.DEFAULT_CONFIG)
+        model = self.MODEL_CLS(model=model_name, config=self.DEFAULT_CONFIG)
 
         # An RGB image of a red square
         image = np.zeros((32, 32, 3), dtype=np.uint8)
@@ -476,7 +476,7 @@ class TestMultipleCompletion:
     @pytest.mark.asyncio
     @pytest.mark.vcr
     async def test_single_completion(self, model_name: str) -> None:
-        model = self.MODEL_CLS(name=model_name, config={"n": 1})
+        model = self.MODEL_CLS(model=model_name, config={"n": 1})
         messages = [
             Message(role="system", content="Respond with single words."),
             Message(content="Hello, how are you?"),
@@ -489,7 +489,7 @@ class TestMultipleCompletion:
         assert len(result.messages) == 1
         assert result.messages[0].content
 
-        model = self.MODEL_CLS(name=model_name, config={"n": 2})
+        model = self.MODEL_CLS(model=model_name, config={"n": 2})
         result = await model.call_single(messages)
         assert isinstance(result, LLMResult)
         assert result.messages
@@ -506,7 +506,7 @@ class TestMultipleCompletion:
         ],
     )
     async def test_multiple_completion(self, model_name: str, request) -> None:
-        model = self.MODEL_CLS(name=model_name, config={"n": self.NUM_COMPLETIONS})
+        model = self.MODEL_CLS(model=model_name, config={"n": self.NUM_COMPLETIONS})
         messages = [
             Message(role="system", content="Respond with single words."),
             Message(content="Hello, how are you?"),
@@ -519,7 +519,7 @@ class TestMultipleCompletion:
             results = await model.call(messages)  # noqa: FURB120
             assert len(results) == self.NUM_COMPLETIONS
 
-            model = self.MODEL_CLS(name=model_name, config={"n": 5})
+            model = self.MODEL_CLS(model=model_name, config={"n": 5})
             results = await model.call(messages, n=self.NUM_COMPLETIONS)
             assert len(results) == self.NUM_COMPLETIONS
 
@@ -553,7 +553,7 @@ def test_json_schema_validation() -> None:
 @pytest.mark.asyncio
 async def test_deepseek_model():
     llm = LiteLLMModel(
-        name="deepseek/deepseek-reasoner",
+        model="deepseek/deepseek-reasoner",
         config={
             "model_list": [
                 {

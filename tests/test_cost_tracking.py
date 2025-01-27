@@ -26,7 +26,7 @@ class TestLiteLLMEmbeddingCosts:
     async def test_embed_documents(self):
         stub_texts = ["test1", "test2"]
         with assert_costs_increased(), cost_tracking_ctx():
-            model = LiteLLMEmbeddingModel(name="text-embedding-3-small", ndim=8)
+            model = LiteLLMEmbeddingModel(model="text-embedding-3-small", ndim=8)
             await model.embed_documents(stub_texts)
 
 
@@ -72,7 +72,7 @@ class TestLiteLLMModel:
     @pytest.mark.asyncio
     async def test_call(self, config: dict[str, Any]) -> None:
         with assert_costs_increased(), cost_tracking_ctx():
-            llm = LiteLLMModel(name=config["model_name"], config=config)
+            llm = LiteLLMModel(model=config["model_name"], config=config)
             messages = [
                 Message(role="system", content="Respond with single words."),
                 Message(role="user", content="What is the meaning of the universe?"),
@@ -86,7 +86,7 @@ class TestLiteLLMModel:
 
         with cost_tracking_ctx():
             with assert_costs_increased():
-                llm = LiteLLMModel(name=CommonLLMNames.GPT_4O.value)
+                llm = LiteLLMModel(model=CommonLLMNames.GPT_4O.value)
                 image = np.zeros((32, 32, 3), dtype=np.uint8)
                 image[:] = [255, 0, 0]
                 messages = [
@@ -139,7 +139,7 @@ class TestLiteLLMModel:
     @pytest.mark.asyncio
     async def test_call_single(self, config: dict[str, Any]) -> None:
         with cost_tracking_ctx(), assert_costs_increased():
-            llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
+            llm = LiteLLMModel(model=CommonLLMNames.OPENAI_TEST.value, config=config)
 
             outputs = []
 

@@ -178,7 +178,7 @@ class LLMModel(ABC, BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     llm_type: str | None = None
-    name: str
+    model: str
     llm_result_callback: Callable[[LLMResult], Any | Awaitable[Any]] | None = Field(
         default=None,
         description=(
@@ -206,7 +206,7 @@ class LLMModel(ABC, BaseModel):
         return len(text) // 4  # gross approximation
 
     def __str__(self) -> str:
-        return f"{type(self).__name__} {self.name}"
+        return f"{type(self).__name__} {self.model}"
 
     # SEE: https://platform.openai.com/docs/api-reference/chat/create#chat-create-tool_choice
     # > `none` means the model will not call any tool and instead generates a message.
@@ -263,7 +263,7 @@ class LLMModel(ABC, BaseModel):
 
         # deal with specifying output type
         if isinstance(output_type, Mapping):  # Use structured outputs
-            model_name: str = chat_kwargs.get("model") or self.name
+            model_name: str = chat_kwargs.get("model") or self.model
             if not litellm.supports_response_schema(model_name, None):
                 raise ValueError(f"Model {model_name} does not support JSON schema.")
 
@@ -390,7 +390,7 @@ def rate_limited(func):
     async def wrapper(self, *args, **kwargs):
         if not hasattr(self, "check_rate_limit"):
             raise NotImplementedError(
-                f"Model {self.name} must have a `check_rate_limit` method."
+                f"Model {self.model} must have a `check_rate_limit` method."
             )
 
         # Estimate token count based on input
@@ -445,7 +445,7 @@ class LiteLLMModel(LLMModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = "gpt-4o-mini"
+    model: str = "gpt-4o-mini"
     config: dict = Field(
         default_factory=dict,
         description=(
@@ -467,23 +467,23 @@ class LiteLLMModel(LLMModel):
     @model_validator(mode="before")
     @classmethod
     def maybe_set_config_attribute(cls, data: dict[str, Any]) -> dict[str, Any]:
-        """If a user only gives a name, make a sensible config dict for them."""
+        """If a user only gives a model name, make a sensible config dict for them."""
         if "config" not in data:
             data["config"] = {}
-        if "name" in data and "model_list" not in data["config"]:
+        if "model" in data and "model_list" not in data["config"]:
             data["config"] = {
                 "model_list": [
                     {
-                        "model_name": data["name"],
+                        "model_name": data["model"],
                         "litellm_params": {
-                            "model": data["name"],
+                            "model": data["model"],
                             "n": data["config"].get("n", 1),
                             "temperature": data["config"].get("temperature", 0.1),
                             "max_tokens": data["config"].get("max_tokens", 4096),
                         }
                         | (
                             {}
-                            if "gemini" not in data["name"]
+                            if "gemini" not in data["model"]
                             else {"safety_settings": DEFAULT_VERTEX_SAFETY_SETTINGS}
                         ),
                     }
@@ -545,8 +545,8 @@ class LiteLLMModel(LLMModel):
     async def check_rate_limit(self, token_count: float, **kwargs) -> None:
         if "rate_limit" in self.config:
             await GLOBAL_LIMITER.try_acquire(
-                ("client", self.name),
-                self.config["rate_limit"].get(self.name, None),
+                ("client", self.model),
+                self.config["rate_limit"].get(self.model, None),
                 weight=max(int(token_count), 1),
                 **kwargs,
             )
@@ -559,7 +559,7 @@ class LiteLLMModel(LLMModel):
             [m.model_dump(by_alias=True) for m in messages if m.content],
         )
         completions = await track_costs(self.router.acompletion)(
-            self.name, prompts, **kwargs
+            self.model, prompts, **kwargs
         )
         results: list[LLMResult] = []
 
@@ -589,7 +589,7 @@ class LiteLLMModel(LLMModel):
 
             results.append(
                 LLMResult(
-                    model=self.name,
+                    model=self.model,
                     text=completion.message.content,
                     prompt=messages,
                     messages=output_messages,
@@ -612,7 +612,7 @@ class LiteLLMModel(LLMModel):
             [m.model_dump(by_alias=True) for m in messages if m.content],
         )
         stream_completions = await track_costs_iter(self.router.acompletion)(
-            self.name,
+            self.model,
             prompts,
             stream=True,
             stream_options={"include_usage": True},
@@ -635,7 +635,7 @@ class LiteLLMModel(LLMModel):
 
         text = "".join(outputs)
         result = LLMResult(
-            model=self.name,
+            model=self.model,
             text=text,
             prompt=messages,
             messages=[Message(role=role, content=text)],
@@ -653,13 +653,13 @@ class LiteLLMModel(LLMModel):
         yield result
 
     def count_tokens(self, text: str) -> int:
-        return litellm.token_counter(model=self.name, text=text)
+        return litellm.token_counter(model=self.model, text=text)
 
     async def select_tool(
         self, *selection_args, **selection_kwargs
     ) -> ToolRequestMessage:
         """Shim to aviary.core.ToolSelector that supports tool schemae."""
         tool_selector = ToolSelector(
-            model_name=self.name, acompletion=track_costs(self.router.acompletion)
+            model_name=self.model, acompletion=track_costs(self.router.acompletion)
         )
         return await tool_selector(*selection_args, **selection_kwargs)

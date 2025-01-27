@@ -16,7 +16,7 @@ LLM_CONFIG_W_RATE_LIMITS = [
     # following ensures that "short-form" rate limits are also supported
     # where the user doesn't specify the model_list
     {
-        "name": CommonLLMNames.OPENAI_TEST.value,
+        "model": CommonLLMNames.OPENAI_TEST.value,
         "config": {
             "rate_limit": {
                 CommonLLMNames.OPENAI_TEST.value: RateLimitItemPerSecond(20, 3)
@@ -24,7 +24,7 @@ LLM_CONFIG_W_RATE_LIMITS = [
         },
     },
     {
-        "name": CommonLLMNames.OPENAI_TEST.value,
+        "model": CommonLLMNames.OPENAI_TEST.value,
         "config": {
             "model_list": [
                 {
@@ -41,7 +41,7 @@ LLM_CONFIG_W_RATE_LIMITS = [
         },
     },
     {
-        "name": CommonLLMNames.OPENAI_TEST.value,
+        "model": CommonLLMNames.OPENAI_TEST.value,
         "config": {
             "model_list": [
                 {
@@ -58,7 +58,7 @@ LLM_CONFIG_W_RATE_LIMITS = [
         },
     },
     {
-        "name": CommonLLMNames.OPENAI_TEST.value,
+        "model": CommonLLMNames.OPENAI_TEST.value,
         "config": {
             "model_list": [
                 {
