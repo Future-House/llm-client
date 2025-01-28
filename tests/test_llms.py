@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import litellm
 import numpy as np
 import pytest
-from aviary.core import Message, Tool, ToolRequestMessage
+from aviary.core import Message, Tool, ToolRequestMessage, ToolResponseMessage
 from pydantic import BaseModel, Field, TypeAdapter, computed_field
 
 from llmclient.exceptions import JSONSchemaValidationError
@@ -530,6 +530,65 @@ class TestMultipleCompletion:
             model = self.MODEL_CLS(name=model_name, config={"n": 5})
             results = await model.call(messages, n=self.NUM_COMPLETIONS)
             assert len(results) == self.NUM_COMPLETIONS
+
+
+class TestTooling:
+    @pytest.mark.asyncio
+    # @pytest.mark.vcr
+    async def test_tool_selection(self) -> None:
+        model = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config={"n": 1})
+
+        def double(x: int) -> int:
+            """Double the input.
+
+            Args:
+                x: The input to double
+            Returns:
+                The double of the input.
+            """
+            return 2 * x
+
+        tools = [Tool.from_function(double)]
+        messages = [
+            Message(
+                role="system",
+                content="You are a helpful assistant who can use tools to do math. Use a tool if needed. If you don't need a tool, just respond with the answer.",
+            ),
+            Message(role="user", content="What is double of 8?"),
+        ]
+
+        results = await model.call(
+            messages, tools=tools, tool_choice=LiteLLMModel.MODEL_CHOOSES_TOOL
+        )
+        assert isinstance(results, list)
+        assert isinstance(results[0].messages, list)
+
+        tool_message = results[0].messages[0]
+
+        assert isinstance(
+            tool_message, ToolRequestMessage
+        ), "It should have selected a tool"
+        assert not tool_message.content
+        assert (
+            tool_message.tool_calls[0].function.arguments["x"] == 8
+        ), "LLM failed in select the correct tool or arguments"
+
+        # Simulate the observation
+        observation = ToolResponseMessage(
+            role="tool",
+            name="double",
+            content="Observation: 16",
+            tool_call_id=tool_message.tool_calls[0].id,
+        )
+        messages.extend([tool_message, observation])
+
+        results = await model.call(
+            messages, tools=tools, tool_choice=LiteLLMModel.MODEL_CHOOSES_TOOL
+        )
+        assert isinstance(results, list)
+        assert isinstance(results[0].messages, list)
+        assert results[0].messages[0].content
+        assert "16" in results[0].messages[0].content
 
 
 def test_json_schema_validation() -> None:
