@@ -446,7 +446,7 @@ class LiteLLMModel(LLMModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = "gpt-4o-mini"
+    name: str = CommonLLMNames.GPT_4O.value
     config: dict = Field(
         default_factory=dict,
         description=(
@@ -477,7 +477,7 @@ class LiteLLMModel(LLMModel):
         if "config" not in data:
             data["config"] = {}
         if "name" not in data:
-            data["name"] = data["config"].get("name", cls.name)
+            data["name"] = data["config"].get("name", CommonLLMNames.GPT_4O.value)
         if "model_list" not in data["config"]:
             data["config"] = {
                 "model_list": [

@@ -21,13 +21,50 @@ from tests.conftest import VCR_DEFAULT_MATCH_ON
 
 
 class TestLiteLLMModel:
+    def test_instantiation_methods(self) -> None:
+        # Test default instantiation
+        model1 = LiteLLMModel()
+        assert model1.name == CommonLLMNames.GPT_4O.value
+        assert isinstance(model1.config, dict)
+        assert "model_list" in model1.config
+
+        # Test name-only instantiation
+        name = CommonLLMNames.ANTHROPIC_TEST.value
+        model2 = LiteLLMModel(name=name)
+        assert model2.name == name
+        assert model2.config["model_list"][0]["model_name"] == name
+
+        # Test config-only instantiation
+        config = {
+            "name": CommonLLMNames.OPENAI_TEST.value,
+            "temperature": 0,
+            "max_tokens": 56,
+        }
+        model3 = LiteLLMModel(config=config)
+        assert model3.name == CommonLLMNames.OPENAI_TEST.value
+        assert (
+            model3.config["model_list"][0]["model_name"]
+            == CommonLLMNames.OPENAI_TEST.value
+        )
+        assert model3.config["model_list"][0]["litellm_params"]["temperature"] == 0
+        assert model3.config["model_list"][0]["litellm_params"]["max_tokens"] == 56
+
+        # Test name and config instantiation
+        name = CommonLLMNames.OPENAI_TEST.value
+        config = {"temperature": 0.5, "max_tokens": 100}
+        model4 = LiteLLMModel(name=name, config=config)
+        assert model4.name == name
+        assert model4.config["model_list"][0]["model_name"] == name
+        assert model4.config["model_list"][0]["litellm_params"]["temperature"] == 0.5
+        assert model4.config["model_list"][0]["litellm_params"]["max_tokens"] == 100
+
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.parametrize(
         "config",
         [
             pytest.param(
                 {
-                    "model_name": CommonLLMNames.OPENAI_TEST.value,
+                    "name": CommonLLMNames.OPENAI_TEST.value,
                     "model_list": [
                         {
                             "model_name": CommonLLMNames.OPENAI_TEST.value,
@@ -44,7 +81,7 @@ class TestLiteLLMModel:
             ),
             pytest.param(
                 {
-                    "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
+                    "name": CommonLLMNames.ANTHROPIC_TEST.value,
                     "model_list": [
                         {
                             "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
@@ -62,7 +99,7 @@ class TestLiteLLMModel:
     )
     @pytest.mark.asyncio
     async def test_call(self, config: dict[str, Any]) -> None:
-        llm = LiteLLMModel(name=config["model_name"], config=config)
+        llm = LiteLLMModel(config=config)
         messages = [
             Message(role="system", content="Respond with single words."),
             Message(role="user", content="What is the meaning of the universe?"),
@@ -140,7 +177,7 @@ class TestLiteLLMModel:
         [
             pytest.param(
                 {
-                    "model_name": CommonLLMNames.OPENAI_TEST.value,
+                    "name": CommonLLMNames.OPENAI_TEST.value,
                     "model_list": [
                         {
                             "model_name": CommonLLMNames.OPENAI_TEST.value,
