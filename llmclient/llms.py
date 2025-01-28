@@ -359,9 +359,10 @@ class LLMModel(ABC, BaseModel):
         output_type: type[BaseModel] | TypeAdapter | JSONSchema | None = None,
         tools: list[Tool] | None = None,
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
+        **kwargs,
     ) -> LLMResult:
         results = await self.call(
-            messages, callbacks, name, output_type, tools, tool_choice, n=1
+            messages, callbacks, name, output_type, tools, tool_choice, n=1, **kwargs
         )
         if not results:
             raise ValueError("No results returned from call")
