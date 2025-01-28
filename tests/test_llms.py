@@ -166,7 +166,7 @@ class TestLiteLLMModel:
     )
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.asyncio
-    async def test_call_single(self, config: dict[str, Any]) -> None:
+    async def test_call_single(self, config: dict[str, Any], subtests) -> None:
         llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
 
         outputs = []
@@ -209,13 +209,13 @@ class TestLiteLLMModel:
         )
         assert completion.cost > 0
 
-        # check passing configs through kwargs
-        completion = await llm.call_single(
-            messages=[Message(role="user", content="Tell me a very long story")],
-            max_tokens=1000,
-        )
-        assert completion.cost > 0
-        assert completion.completion_count > 100, "Expected a long completion"
+        with subtests.test(msg="passing-kwargs"):
+            completion = await llm.call_single(
+                messages=[Message(role="user", content="Tell me a very long story")],
+                max_tokens=1000,
+            )
+            assert completion.cost > 0
+            assert completion.completion_count > 100, "Expected a long completion"
 
     @pytest.mark.vcr
     @pytest.mark.parametrize(
@@ -254,7 +254,7 @@ class TestLiteLLMModel:
             autospec=True,
         ) as mock_completion:
             completions = await llm.acompletion(
-                [Message(role="user", content="Please tell me a story")]
+                [Message(content="Please tell me a story")]
             )
         if bypassed_router:
             mock_completion.assert_not_awaited()
