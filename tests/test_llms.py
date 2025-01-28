@@ -135,7 +135,6 @@ class TestLiteLLMModel:
             assert result.completion_count > 0
             assert result.cost > 0
 
-    @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.parametrize(
         "config",
         [
@@ -165,6 +164,7 @@ class TestLiteLLMModel:
             ),
         ],
     )
+    @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.asyncio
     async def test_call_single(self, config: dict[str, Any]) -> None:
         llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
@@ -209,33 +209,13 @@ class TestLiteLLMModel:
         )
         assert completion.cost > 0
 
-    @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
-    @pytest.mark.asyncio
-    async def test_call_single_with_kwargs(self) -> None:
-        llm = LiteLLMModel(
-            name=CommonLLMNames.OPENAI_TEST.value,
-            config={
-                "temperature": 0,
-                "max_tokens": 1000, # defaults max_token to a large number
-            },
-        )
-
-        messages = [Message(role="user", content="Can you please tell me a very long story?")]
-        
+        # check passing configs through kwargs
         completion = await llm.call_single(
-            messages=messages,
+            messages=[Message(role="user", content="Tell me a very long story")],
+            max_tokens=1000,
         )
         assert completion.cost > 0
-        #validates that it generates a long completion if not truncated
-        assert completion.completion_count > 10, "Expected a long completion"
-
-        
-        completion = await llm.call_single(
-            messages=messages,
-            max_tokens=10,
-        )
-        assert completion.cost > 0
-        assert completion.completion_count <= 10, "Expected a truncated completion"
+        assert completion.completion_count > 100, "Expected a long completion"
 
     @pytest.mark.vcr
     @pytest.mark.parametrize(
