@@ -468,10 +468,17 @@ class LiteLLMModel(LLMModel):
     @model_validator(mode="before")
     @classmethod
     def maybe_set_config_attribute(cls, data: dict[str, Any]) -> dict[str, Any]:
-        """If a user only gives a name, make a sensible config dict for them."""
+        """
+        Set the config attribute if it is not provided.
+
+        If name is not provided, uses the default name.
+        If a user only gives a name, make a sensible config dict for them.
+        """
         if "config" not in data:
             data["config"] = {}
-        if "name" in data and "model_list" not in data["config"]:
+        if "name" not in data:
+            data["name"] = data["config"].get("name", cls.name)
+        if "model_list" not in data["config"]:
             data["config"] = {
                 "model_list": [
                     {
