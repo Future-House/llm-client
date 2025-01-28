@@ -477,7 +477,7 @@ class LiteLLMModel(LLMModel):
         if "config" not in data:
             data["config"] = {}
         if "name" not in data:
-            data["name"] = data["config"].get("name", CommonLLMNames.GPT_4O.value)
+            data["name"] = data["config"].get("name", cls.model_fields["name"].default)
         if "model_list" not in data["config"]:
             data["config"] = {
                 "model_list": [
