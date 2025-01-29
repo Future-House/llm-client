@@ -104,7 +104,8 @@ class TestLiteLLMModel:
             Message(role="system", content="Respond with single words."),
             Message(role="user", content="What is the meaning of the universe?"),
         ]
-        results = await llm.call(messages)
+        result_name = f"test-{llm.name}"
+        results = await llm.call(messages, name=result_name)
         assert isinstance(results, list)
 
         result = results[0]
@@ -116,7 +117,7 @@ class TestLiteLLMModel:
         assert result.prompt[1].content
         assert result.text
         assert result.logprob is None or result.logprob <= 0
-
+        assert result.name == result_name
         result = await llm.call_single(messages)
         assert isinstance(result, LLMResult)
 
