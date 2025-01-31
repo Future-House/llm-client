@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import litellm
 import numpy as np
 import pytest
-from aviary.core import Message, Tool, ToolRequestMessage
+from aviary.core import Message, Tool, ToolRequestMessage, ToolResponseMessage
 from pydantic import BaseModel, Field, TypeAdapter, computed_field
 
 from llmclient.exceptions import JSONSchemaValidationError
@@ -21,13 +21,50 @@ from tests.conftest import VCR_DEFAULT_MATCH_ON
 
 
 class TestLiteLLMModel:
+    def test_instantiation_methods(self) -> None:
+        # Test default instantiation
+        model1 = LiteLLMModel()
+        assert model1.name == CommonLLMNames.GPT_4O.value
+        assert isinstance(model1.config, dict)
+        assert "model_list" in model1.config
+
+        # Test name-only instantiation
+        name = CommonLLMNames.ANTHROPIC_TEST.value
+        model2 = LiteLLMModel(name=name)
+        assert model2.name == name
+        assert model2.config["model_list"][0]["model_name"] == name
+
+        # Test config-only instantiation
+        config = {
+            "name": CommonLLMNames.OPENAI_TEST.value,
+            "temperature": 0,
+            "max_tokens": 56,
+        }
+        model3 = LiteLLMModel(config=config)
+        assert model3.name == CommonLLMNames.OPENAI_TEST.value
+        assert (
+            model3.config["model_list"][0]["model_name"]
+            == CommonLLMNames.OPENAI_TEST.value
+        )
+        assert model3.config["model_list"][0]["litellm_params"]["temperature"] == 0
+        assert model3.config["model_list"][0]["litellm_params"]["max_tokens"] == 56
+
+        # Test name and config instantiation
+        name = CommonLLMNames.OPENAI_TEST.value
+        config = {"temperature": 0.5, "max_tokens": 100}
+        model4 = LiteLLMModel(name=name, config=config)
+        assert model4.name == name
+        assert model4.config["model_list"][0]["model_name"] == name
+        assert model4.config["model_list"][0]["litellm_params"]["temperature"] == 0.5
+        assert model4.config["model_list"][0]["litellm_params"]["max_tokens"] == 100
+
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.parametrize(
         "config",
         [
             pytest.param(
                 {
-                    "model_name": CommonLLMNames.OPENAI_TEST.value,
+                    "name": CommonLLMNames.OPENAI_TEST.value,
                     "model_list": [
                         {
                             "model_name": CommonLLMNames.OPENAI_TEST.value,
@@ -44,7 +81,7 @@ class TestLiteLLMModel:
             ),
             pytest.param(
                 {
-                    "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
+                    "name": CommonLLMNames.ANTHROPIC_TEST.value,
                     "model_list": [
                         {
                             "model_name": CommonLLMNames.ANTHROPIC_TEST.value,
@@ -62,12 +99,13 @@ class TestLiteLLMModel:
     )
     @pytest.mark.asyncio
     async def test_call(self, config: dict[str, Any]) -> None:
-        llm = LiteLLMModel(name=config["model_name"], config=config)
+        llm = LiteLLMModel(config=config)
         messages = [
             Message(role="system", content="Respond with single words."),
             Message(role="user", content="What is the meaning of the universe?"),
         ]
-        results = await llm.call(messages)
+        result_name = f"test-{llm.name}"
+        results = await llm.call(messages, name=result_name)
         assert isinstance(results, list)
 
         result = results[0]
@@ -79,7 +117,7 @@ class TestLiteLLMModel:
         assert result.prompt[1].content
         assert result.text
         assert result.logprob is None or result.logprob <= 0
-
+        assert result.name == result_name
         result = await llm.call_single(messages)
         assert isinstance(result, LLMResult)
 
@@ -135,13 +173,12 @@ class TestLiteLLMModel:
             assert result.completion_count > 0
             assert result.cost > 0
 
-    @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.parametrize(
         "config",
         [
             pytest.param(
                 {
-                    "model_name": CommonLLMNames.OPENAI_TEST.value,
+                    "name": CommonLLMNames.OPENAI_TEST.value,
                     "model_list": [
                         {
                             "model_name": CommonLLMNames.OPENAI_TEST.value,
@@ -165,8 +202,9 @@ class TestLiteLLMModel:
             ),
         ],
     )
+    @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.asyncio
-    async def test_call_single(self, config: dict[str, Any]) -> None:
+    async def test_call_single(self, config: dict[str, Any], subtests) -> None:
         llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
 
         outputs = []
@@ -209,6 +247,14 @@ class TestLiteLLMModel:
         )
         assert completion.cost > 0
 
+        with subtests.test(msg="passing-kwargs"):
+            completion = await llm.call_single(
+                messages=[Message(role="user", content="Tell me a very long story")],
+                max_tokens=1000,
+            )
+            assert completion.cost > 0
+            assert completion.completion_count > 100, "Expected a long completion"
+
     @pytest.mark.vcr
     @pytest.mark.parametrize(
         ("config", "bypassed_router"),
@@ -246,7 +292,7 @@ class TestLiteLLMModel:
             autospec=True,
         ) as mock_completion:
             completions = await llm.acompletion(
-                [Message(role="user", content="Please tell me a story")]
+                [Message(content="Please tell me a story")]
             )
         if bypassed_router:
             mock_completion.assert_not_awaited()
@@ -522,6 +568,65 @@ class TestMultipleCompletion:
             model = self.MODEL_CLS(name=model_name, config={"n": 5})
             results = await model.call(messages, n=self.NUM_COMPLETIONS)
             assert len(results) == self.NUM_COMPLETIONS
+
+
+class TestTooling:
+    @pytest.mark.asyncio
+    # @pytest.mark.vcr
+    async def test_tool_selection(self) -> None:
+        model = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config={"n": 1})
+
+        def double(x: int) -> int:
+            """Double the input.
+
+            Args:
+                x: The input to double
+            Returns:
+                The double of the input.
+            """
+            return 2 * x
+
+        tools = [Tool.from_function(double)]
+        messages = [
+            Message(
+                role="system",
+                content="You are a helpful assistant who can use tools to do math. Use a tool if needed. If you don't need a tool, just respond with the answer.",
+            ),
+            Message(role="user", content="What is double of 8?"),
+        ]
+
+        results = await model.call(
+            messages, tools=tools, tool_choice=LiteLLMModel.MODEL_CHOOSES_TOOL
+        )
+        assert isinstance(results, list)
+        assert isinstance(results[0].messages, list)
+
+        tool_message = results[0].messages[0]
+
+        assert isinstance(
+            tool_message, ToolRequestMessage
+        ), "It should have selected a tool"
+        assert not tool_message.content
+        assert (
+            tool_message.tool_calls[0].function.arguments["x"] == 8
+        ), "LLM failed in select the correct tool or arguments"
+
+        # Simulate the observation
+        observation = ToolResponseMessage(
+            role="tool",
+            name="double",
+            content="Observation: 16",
+            tool_call_id=tool_message.tool_calls[0].id,
+        )
+        messages.extend([tool_message, observation])
+
+        results = await model.call(
+            messages, tools=tools, tool_choice=LiteLLMModel.MODEL_CHOOSES_TOOL
+        )
+        assert isinstance(results, list)
+        assert isinstance(results[0].messages, list)
+        assert results[0].messages[0].content
+        assert "16" in results[0].messages[0].content
 
 
 def test_json_schema_validation() -> None:

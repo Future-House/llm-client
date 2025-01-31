@@ -1,10 +1,11 @@
+import asyncio
 import contextlib
 import logging
 import logging.config
 import os
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Iterable
 from inspect import signature
-from typing import Any
+from typing import Any, TypeVar
 
 import litellm
 
@@ -59,3 +60,23 @@ def partial_format(value: str, **formats: dict[str, Any]) -> str:
         with contextlib.suppress(KeyError):
             value = value.format(**{template_key: template_value})
     return value
+
+
+T = TypeVar("T")
+
+
+async def gather_with_concurrency(
+    n: int | asyncio.Semaphore, coros: Iterable[Awaitable[T]]
+) -> list[T]:
+    """
+    Run asyncio.gather with a concurrency limit.
+
+    SEE:  https://stackoverflow.com/a/61478547/2392535
+    """
+    semaphore = asyncio.Semaphore(n) if isinstance(n, int) else n
+
+    async def sem_coro(coro: Awaitable[T]) -> T:
+        async with semaphore:
+            return await coro
+
+    return await asyncio.gather(*(sem_coro(c) for c in coros))

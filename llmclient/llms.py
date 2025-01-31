@@ -344,7 +344,7 @@ class LLMModel(ABC, BaseModel):
             result.seconds_to_last_token = (
                 asyncio.get_running_loop().time() - start_clock
             )
-
+            result.name = name
             if self.llm_result_callback:
                 possibly_awaitable_result = self.llm_result_callback(result)
                 if isawaitable(possibly_awaitable_result):
@@ -359,9 +359,10 @@ class LLMModel(ABC, BaseModel):
         output_type: type[BaseModel] | TypeAdapter | JSONSchema | None = None,
         tools: list[Tool] | None = None,
         tool_choice: Tool | str | None = TOOL_CHOICE_REQUIRED,
+        **kwargs,
     ) -> LLMResult:
         results = await self.call(
-            messages, callbacks, name, output_type, tools, tool_choice, n=1
+            messages, callbacks, name, output_type, tools, tool_choice, n=1, **kwargs
         )
         if not results:
             raise ValueError("No results returned from call")
@@ -445,7 +446,7 @@ class LiteLLMModel(LLMModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = "gpt-4o-mini"
+    name: str = CommonLLMNames.GPT_4O.value
     config: dict = Field(
         default_factory=dict,
         description=(
@@ -467,10 +468,17 @@ class LiteLLMModel(LLMModel):
     @model_validator(mode="before")
     @classmethod
     def maybe_set_config_attribute(cls, data: dict[str, Any]) -> dict[str, Any]:
-        """If a user only gives a name, make a sensible config dict for them."""
+        """
+        Set the config attribute if it is not provided.
+
+        If name is not provided, uses the default name.
+        If a user only gives a name, make a sensible config dict for them.
+        """
         if "config" not in data:
             data["config"] = {}
-        if "name" in data and "model_list" not in data["config"]:
+        if "name" not in data:
+            data["name"] = data["config"].get("name", cls.model_fields["name"].default)
+        if "model_list" not in data["config"]:
             data["config"] = {
                 "model_list": [
                     {
@@ -556,7 +564,7 @@ class LiteLLMModel(LLMModel):
         # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
         prompts = cast(
             list[litellm.types.llms.openai.AllMessageValues],
-            [m.model_dump(by_alias=True) for m in messages if m.content],
+            [m.model_dump(by_alias=True) for m in messages],
         )
         completions = await track_costs(self.router.acompletion)(
             self.name, prompts, **kwargs

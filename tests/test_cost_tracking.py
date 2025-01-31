@@ -70,7 +70,7 @@ class TestLiteLLMModel:
         ],
     )
     @pytest.mark.asyncio
-    async def test_call(self, config: dict[str, Any]) -> None:
+    async def test_cost_call(self, config: dict[str, Any]) -> None:
         with assert_costs_increased(), cost_tracking_ctx():
             llm = LiteLLMModel(name=config["model_name"], config=config)
             messages = [
@@ -80,7 +80,7 @@ class TestLiteLLMModel:
             await llm.call(messages)
 
     @pytest.mark.asyncio
-    async def test_call_w_figure(self) -> None:
+    async def test_cost_call_w_figure(self) -> None:
         async def ac(x) -> None:
             pass
 
@@ -137,7 +137,7 @@ class TestLiteLLMModel:
         ],
     )
     @pytest.mark.asyncio
-    async def test_call_single(self, config: dict[str, Any]) -> None:
+    async def test_cost_call_single(self, config: dict[str, Any]) -> None:
         with cost_tracking_ctx(), assert_costs_increased():
             llm = LiteLLMModel(name=CommonLLMNames.OPENAI_TEST.value, config=config)
 
