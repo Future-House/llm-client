@@ -204,6 +204,8 @@ await GLOBAL_LIMITER.try_acquire(
 
 ### Tool calling
 
+
+
 ### Embedding models
 
 This client also includes embedding models. An embedding model is a class that inherits from `EmbeddingModel` and implements the `embed_documents` method, which receives a list of strings and returns a list with a list of floats (the embeddings) for each string.
