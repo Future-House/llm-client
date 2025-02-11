@@ -96,17 +96,15 @@ def sum_logprobs(choice: litellm.utils.Choices | list[float]) -> float | None:
         The sum of the log probabilities of the choice.
     """
     if isinstance(choice, litellm.utils.Choices):
-        try:
-            logprob_obj = choice.logprobs
-        except AttributeError:
+        logprob_obj = getattr(choice, "logprobs", None)
+        if not logprob_obj:
             return None
-        if isinstance(logprob_obj, dict):
-            if logprob_obj.get("content"):
-                return sum(
-                    logprob_info["logprob"] for logprob_info in logprob_obj["content"]
-                )
-        elif choice.logprobs.content:
-            return sum(logprob_info.logprob for logprob_info in choice.logprobs.content)
+
+        if isinstance(logprob_obj, dict) and logprob_obj.get("content", None):
+            return sum(
+                logprob_info["logprob"] for logprob_info in logprob_obj["content"]
+            )
+
     elif isinstance(choice, list):
         return sum(choice)
     return None
@@ -247,6 +245,7 @@ class LLMModel(ABC, BaseModel):
             raise ValueError("Number of completions (n) must be >= 1.")
 
         # deal with tools
+        chat_kwargs["tools"] = tools  # Allows for empty tools list
         if tools:
             chat_kwargs["tools"] = ToolsAdapter.dump_python(
                 tools, exclude_none=True, by_alias=True
@@ -574,8 +573,10 @@ class LiteLLMModel(LLMModel):
         # We are not streaming here, so we can cast to list[litellm.utils.Choices]
         choices = cast(list[litellm.utils.Choices], completions.choices)
         for completion in choices:
-            if completion.finish_reason == "tool_calls" or getattr(
-                completion.message, "tool_calls", None
+            if (
+                kwargs.get("tools") is not None  # Allows for empty tools list
+                or completion.finish_reason == "tool_calls"
+                or (getattr(completion.message, "tool_calls", None) is not None)
             ):
                 serialized_message = completion.message.model_dump()
                 serialized_message["tool_calls"] = (

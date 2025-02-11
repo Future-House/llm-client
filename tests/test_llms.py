@@ -116,7 +116,11 @@ class TestLiteLLMModel:
         assert len(result.prompt) == 2  # role + user messages
         assert result.prompt[1].content
         assert result.text
-        assert result.logprob is None or result.logprob <= 0
+        if llm.config["model_list"][0]["litellm_params"].get("logprobs"):
+            assert isinstance(result.logprob, float)
+            assert result.logprob <= 0
+        else:
+            assert result.logprob is None
         assert result.name == result_name
         result = await llm.call_single(messages)
         assert isinstance(result, LLMResult)
@@ -397,7 +401,11 @@ class TestMultipleCompletion:
             assert result.prompt_count > 0
             assert result.completion_count > 0
             assert result.cost > 0
-            assert result.logprob is None or result.logprob <= 0
+        if model.config["model_list"][0]["litellm_params"].get("logprobs"):
+            assert isinstance(result.logprob, float)
+            assert result.logprob <= 0
+        else:
+            assert result.logprob is None
 
     @pytest.mark.parametrize(
         "model_name",
