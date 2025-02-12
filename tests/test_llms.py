@@ -636,6 +636,31 @@ class TestTooling:
         assert results[0].messages[0].content
         assert "16" in results[0].messages[0].content
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "tools",
+        [
+            pytest.param([], id="empty-tools"),
+            pytest.param(None, id="no-tools"),
+        ])
+    async def test_empty_tools(self, tools) -> None:
+        model = LiteLLMModel(
+            name=CommonLLMNames.OPENAI_TEST.value, 
+            config={"n": 1, "max_tokens": 56}
+            )
+
+        result = await model.call_single(
+            messages = [Message(content="What does 42 mean?")], 
+            tools=tools, 
+            tool_choice=LiteLLMModel.MODEL_CHOOSES_TOOL
+        )
+
+        assert result
+        if tools is None:
+            assert isinstance(result.messages[0], Message)
+        else:
+            assert isinstance(result.messages[0], ToolRequestMessage)
+            assert not result.messages[0].tool_calls
 
 def test_json_schema_validation() -> None:
     # Invalid JSON

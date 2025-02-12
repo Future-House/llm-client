@@ -245,7 +245,6 @@ class LLMModel(ABC, BaseModel):
             raise ValueError("Number of completions (n) must be >= 1.")
 
         # deal with tools
-        chat_kwargs["tools"] = tools  # Allows for empty tools list
         if tools:
             chat_kwargs["tools"] = ToolsAdapter.dump_python(
                 tools, exclude_none=True, by_alias=True
@@ -259,7 +258,9 @@ class LLMModel(ABC, BaseModel):
                     if isinstance(tool_choice, Tool)
                     else tool_choice
                 )
-
+        else:
+            chat_kwargs["tools"] = tools  # Allows for empty tools list
+        
         # deal with specifying output type
         if isinstance(output_type, Mapping):  # Use structured outputs
             model_name: str = chat_kwargs.get("model") or self.name
@@ -561,6 +562,10 @@ class LiteLLMModel(LLMModel):
     @rate_limited
     async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:
         # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
+        tools = None
+        if kwargs.get('tools', None) is not None:
+            tools = kwargs.pop('tools')
+
         prompts = cast(
             list[litellm.types.llms.openai.AllMessageValues],
             [m.model_dump(by_alias=True) for m in messages],
@@ -574,7 +579,7 @@ class LiteLLMModel(LLMModel):
         choices = cast(list[litellm.utils.Choices], completions.choices)
         for completion in choices:
             if (
-                kwargs.get("tools") is not None  # Allows for empty tools list
+                tools is not None  # Allows for empty tools list
                 or completion.finish_reason == "tool_calls"
                 or (getattr(completion.message, "tool_calls", None) is not None)
             ):
