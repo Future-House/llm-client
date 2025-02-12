@@ -651,7 +651,7 @@ class TestTooling:
         ],
     )
     @pytest.mark.vcr
-    async def test_empty_tools(self, tools, model_name) -> None:
+    async def test_empty_tools(self, tools: list | None, model_name: str) -> None:
         model = LiteLLMModel(name=model_name, config={"n": 1, "max_tokens": 56})
 
         result = await model.call_single(

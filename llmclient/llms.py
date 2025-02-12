@@ -561,12 +561,13 @@ class LiteLLMModel(LLMModel):
 
     @rate_limited
     async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:
-        # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
         tools = kwargs.get("tools")
         if not tools:
-            # LiteLLM doesn't allow empty tool_calls lists, so downcast empty
+            # OpenAI, Anthropic and pottentially other LLM providers
+            # don't allow empty tool_calls lists, so downcast empty
             kwargs.pop("tools", None)
 
+        # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
         prompts = cast(
             list[litellm.types.llms.openai.AllMessageValues],
             [m.model_dump(by_alias=True) for m in messages],
