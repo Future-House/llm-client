@@ -564,7 +564,7 @@ class LiteLLMModel(LLMModel):
         tools = kwargs.get("tools")
         if not tools:
             # OpenAI, Anthropic and pottentially other LLM providers
-            # don't allow empty tool_calls lists, so downcast empty
+            # don't allow empty tool_calls lists, so remove empty
             kwargs.pop("tools", None)
 
         # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
