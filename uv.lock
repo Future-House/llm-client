@@ -535,7 +535,6 @@ wheels = [
 
 [[package]]
 name = "fh-llm-client"
-version = "0.0.11.dev3+ge27c993.d20250123"
 source = { editable = "." }
 dependencies = [
     { name = "coredis" },
@@ -570,11 +569,15 @@ dev = [
     { name = "python-dotenv" },
     { name = "refurb" },
     { name = "sentence-transformers" },
+    { name = "tqdm" },
     { name = "typeguard" },
 ]
 local = [
     { name = "numpy" },
     { name = "sentence-transformers" },
+]
+progress = [
+    { name = "tqdm" },
 ]
 
 [package.dev-dependencies]
@@ -589,7 +592,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "coredis" },
-    { name = "fh-llm-client", extras = ["deepseek", "local"], marker = "extra == 'dev'" },
+    { name = "fh-llm-client", extras = ["deepseek", "local", "progress"], marker = "extra == 'dev'" },
     { name = "fhaviary", specifier = ">=0.14.0" },
     { name = "fhaviary", extras = ["xml"], marker = "extra == 'dev'" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8" },
@@ -613,6 +616,7 @@ requires-dist = [
     { name = "refurb", marker = "extra == 'dev'", specifier = ">=2" },
     { name = "sentence-transformers", marker = "extra == 'local'" },
     { name = "tiktoken", specifier = ">=0.4.0" },
+    { name = "tqdm", marker = "extra == 'progress'" },
     { name = "typeguard", marker = "extra == 'dev'" },
     { name = "typing-extensions", marker = "python_full_version < '3.12'" },
 ]

@@ -43,7 +43,7 @@ deepseek = [
     "litellm>1.59.3",  # Pin for deepseek-r1 reasoning
 ]
 dev = [
-    "fh-llm-client[local, deepseek]",
+    "fh-llm-client[deepseek,local,progress]",
     "fhaviary[xml]",
     "ipython>=8",  # Pin to keep recent
     "mypy>=1.8",  # Pin for mutable-override
@@ -65,6 +65,7 @@ local = [
     "numpy",
     "sentence-transformers",
 ]
+progress = ["tqdm"]
 
 [project.urls]
 issues = "https://github.com/Future-House/llm-client/issues"
