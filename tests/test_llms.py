@@ -116,7 +116,11 @@ class TestLiteLLMModel:
         assert len(result.prompt) == 2  # role + user messages
         assert result.prompt[1].content
         assert result.text
-        assert result.logprob is None or result.logprob <= 0
+        if llm.config["model_list"][0]["litellm_params"].get("logprobs"):
+            assert isinstance(result.logprob, float)
+            assert result.logprob <= 0
+        else:
+            assert result.logprob is None
         assert result.name == result_name
         result = await llm.call_single(messages)
         assert isinstance(result, LLMResult)
@@ -397,7 +401,11 @@ class TestMultipleCompletion:
             assert result.prompt_count > 0
             assert result.completion_count > 0
             assert result.cost > 0
-            assert result.logprob is None or result.logprob <= 0
+        if model.config["model_list"][0]["litellm_params"].get("logprobs"):
+            assert isinstance(result.logprob, float)
+            assert result.logprob <= 0
+        else:
+            assert result.logprob is None
 
     @pytest.mark.parametrize(
         "model_name",
@@ -627,6 +635,37 @@ class TestTooling:
         assert isinstance(results[0].messages, list)
         assert results[0].messages[0].content
         assert "16" in results[0].messages[0].content
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tools", "model_name"),
+        [
+            pytest.param([], CommonLLMNames.OPENAI_TEST.value, id="OpenAI-empty-tools"),
+            pytest.param(None, CommonLLMNames.OPENAI_TEST.value, id="OpenAI-no-tools"),
+            pytest.param(
+                [], CommonLLMNames.ANTHROPIC_TEST.value, id="Anthropic-empty-tools"
+            ),
+            pytest.param(
+                None, CommonLLMNames.ANTHROPIC_TEST.value, id="Anthropic-no-tools"
+            ),
+        ],
+    )
+    @pytest.mark.vcr
+    async def test_empty_tools(self, tools: list | None, model_name: str) -> None:
+        model = LiteLLMModel(name=model_name, config={"n": 1, "max_tokens": 56})
+
+        result = await model.call_single(
+            messages=[Message(content="What does 42 mean?")],
+            tools=tools,
+            tool_choice=LiteLLMModel.MODEL_CHOOSES_TOOL,
+        )
+
+        assert isinstance(result.messages, list)
+        if tools is None:
+            assert isinstance(result.messages[0], Message)
+        else:
+            assert isinstance(result.messages[0], ToolRequestMessage)
+            assert not result.messages[0].tool_calls
 
 
 def test_json_schema_validation() -> None:

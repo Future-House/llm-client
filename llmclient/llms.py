@@ -96,17 +96,15 @@ def sum_logprobs(choice: litellm.utils.Choices | list[float]) -> float | None:
         The sum of the log probabilities of the choice.
     """
     if isinstance(choice, litellm.utils.Choices):
-        try:
-            logprob_obj = choice.logprobs
-        except AttributeError:
+        logprob_obj = getattr(choice, "logprobs", None)
+        if not logprob_obj:
             return None
-        if isinstance(logprob_obj, dict):
-            if logprob_obj.get("content"):
-                return sum(
-                    logprob_info["logprob"] for logprob_info in logprob_obj["content"]
-                )
-        elif choice.logprobs.content:
-            return sum(logprob_info.logprob for logprob_info in choice.logprobs.content)
+
+        if isinstance(logprob_obj, dict) and logprob_obj.get("content", None):
+            return sum(
+                logprob_info["logprob"] for logprob_info in logprob_obj["content"]
+            )
+
     elif isinstance(choice, list):
         return sum(choice)
     return None
@@ -260,6 +258,8 @@ class LLMModel(ABC, BaseModel):
                     if isinstance(tool_choice, Tool)
                     else tool_choice
                 )
+        else:
+            chat_kwargs["tools"] = tools  # Allows for empty tools list
 
         # deal with specifying output type
         if isinstance(output_type, Mapping):  # Use structured outputs
@@ -561,6 +561,12 @@ class LiteLLMModel(LLMModel):
 
     @rate_limited
     async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:
+        tools = kwargs.get("tools")
+        if not tools:
+            # OpenAI, Anthropic and pottentially other LLM providers
+            # don't allow empty tool_calls lists, so remove empty
+            kwargs.pop("tools", None)
+
         # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
         prompts = cast(
             list[litellm.types.llms.openai.AllMessageValues],
@@ -574,8 +580,10 @@ class LiteLLMModel(LLMModel):
         # We are not streaming here, so we can cast to list[litellm.utils.Choices]
         choices = cast(list[litellm.utils.Choices], completions.choices)
         for completion in choices:
-            if completion.finish_reason == "tool_calls" or getattr(
-                completion.message, "tool_calls", None
+            if (
+                tools is not None  # Allows for empty tools list
+                or completion.finish_reason == "tool_calls"
+                or (getattr(completion.message, "tool_calls", None) is not None)
             ):
                 serialized_message = completion.message.model_dump()
                 serialized_message["tool_calls"] = (
