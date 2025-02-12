@@ -260,7 +260,7 @@ class LLMModel(ABC, BaseModel):
                 )
         else:
             chat_kwargs["tools"] = tools  # Allows for empty tools list
-        
+
         # deal with specifying output type
         if isinstance(output_type, Mapping):  # Use structured outputs
             model_name: str = chat_kwargs.get("model") or self.name
@@ -563,8 +563,8 @@ class LiteLLMModel(LLMModel):
     async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:
         # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
         tools = None
-        if kwargs.get('tools', None) is not None:
-            tools = kwargs.pop('tools')
+        if kwargs.get("tools") is not None:
+            tools = kwargs.pop("tools")
 
         prompts = cast(
             list[litellm.types.llms.openai.AllMessageValues],

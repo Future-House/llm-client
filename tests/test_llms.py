@@ -642,25 +642,26 @@ class TestTooling:
         [
             pytest.param([], id="empty-tools"),
             pytest.param(None, id="no-tools"),
-        ])
+        ],
+    )
     async def test_empty_tools(self, tools) -> None:
         model = LiteLLMModel(
-            name=CommonLLMNames.OPENAI_TEST.value, 
-            config={"n": 1, "max_tokens": 56}
-            )
-
-        result = await model.call_single(
-            messages = [Message(content="What does 42 mean?")], 
-            tools=tools, 
-            tool_choice=LiteLLMModel.MODEL_CHOOSES_TOOL
+            name=CommonLLMNames.OPENAI_TEST.value, config={"n": 1, "max_tokens": 56}
         )
 
-        assert result
+        result = await model.call_single(
+            messages=[Message(content="What does 42 mean?")],
+            tools=tools,
+            tool_choice=LiteLLMModel.MODEL_CHOOSES_TOOL,
+        )
+
+        assert isinstance(result.messages, list)
         if tools is None:
             assert isinstance(result.messages[0], Message)
         else:
             assert isinstance(result.messages[0], ToolRequestMessage)
             assert not result.messages[0].tool_calls
+
 
 def test_json_schema_validation() -> None:
     # Invalid JSON
