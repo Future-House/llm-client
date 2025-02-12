@@ -9,6 +9,11 @@ from typing import Any, TypeVar
 
 import litellm
 
+try:
+    from tqdm.asyncio import tqdm
+except ImportError:
+    tqdm = None  # type: ignore[assignment,misc]
+
 
 def configure_llm_logs() -> None:
     """Configure log levels."""
@@ -66,12 +71,12 @@ T = TypeVar("T")
 
 
 async def gather_with_concurrency(
-    n: int | asyncio.Semaphore, coros: Iterable[Awaitable[T]]
+    n: int | asyncio.Semaphore, coros: Iterable[Awaitable[T]], progress: bool = False
 ) -> list[T]:
     """
     Run asyncio.gather with a concurrency limit.
 
-    SEE:  https://stackoverflow.com/a/61478547/2392535
+    SEE: https://stackoverflow.com/a/61478547/2392535
     """
     semaphore = asyncio.Semaphore(n) if isinstance(n, int) else n
 
@@ -79,4 +84,15 @@ async def gather_with_concurrency(
         async with semaphore:
             return await coro
 
+    if progress:
+        try:
+            return await tqdm.gather(
+                *(sem_coro(c) for c in coros), desc="Gathering", ncols=0
+            )
+        except AttributeError:
+            raise ImportError(
+                "Gathering with a progress bar requires 'tqdm' as a dependency, which"
+                " is in the 'progress' extra."
+                " Please run `pip install fh-llm-client[progress]`."
+            ) from None
     return await asyncio.gather(*(sem_coro(c) for c in coros))
