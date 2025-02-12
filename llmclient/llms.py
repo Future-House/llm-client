@@ -564,6 +564,7 @@ class LiteLLMModel(LLMModel):
         # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
         tools = kwargs.get("tools")
         if not tools:
+            # LiteLLM doesn't allow empty tool_calls lists, so downcast empty
             kwargs.pop("tools", None)
 
         prompts = cast(

@@ -638,16 +638,21 @@ class TestTooling:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "tools",
+        ("tools", "model_name"),
         [
-            pytest.param([], id="empty-tools"),
-            pytest.param(None, id="no-tools"),
+            pytest.param([], CommonLLMNames.OPENAI_TEST.value, id="OpenAI-empty-tools"),
+            pytest.param(None, CommonLLMNames.OPENAI_TEST.value, id="OpenAI-no-tools"),
+            pytest.param(
+                [], CommonLLMNames.ANTHROPIC_TEST.value, id="Anthropic-empty-tools"
+            ),
+            pytest.param(
+                None, CommonLLMNames.ANTHROPIC_TEST.value, id="Anthropic-no-tools"
+            ),
         ],
     )
-    async def test_empty_tools(self, tools) -> None:
-        model = LiteLLMModel(
-            name=CommonLLMNames.OPENAI_TEST.value, config={"n": 1, "max_tokens": 56}
-        )
+    @pytest.mark.vcr
+    async def test_empty_tools(self, tools, model_name) -> None:
+        model = LiteLLMModel(name=model_name, config={"n": 1, "max_tokens": 56})
 
         result = await model.call_single(
             messages=[Message(content="What does 42 mean?")],
