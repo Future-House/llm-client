@@ -562,9 +562,9 @@ class LiteLLMModel(LLMModel):
     @rate_limited
     async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:
         # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
-        tools = None
-        if kwargs.get("tools") is not None:
-            tools = kwargs.pop("tools")
+        tools = kwargs.get("tools")
+        if not tools:
+            kwargs.pop("tools", None)
 
         prompts = cast(
             list[litellm.types.llms.openai.AllMessageValues],
