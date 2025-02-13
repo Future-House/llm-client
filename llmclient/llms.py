@@ -558,18 +558,22 @@ class LiteLLMModel(LLMModel):
         if "rate_limit" not in self.config:
             return
 
-        for model_name in self.config["model_list"]:
-            self.name = model_name["model_name"]
-            try:
-                await GLOBAL_LIMITER.try_acquire(
-                    ("client", self.name),
-                    self.config["rate_limit"].get(self.name, None),
-                    weight=max(int(token_count), 1),
-                    **kwargs,
-                )
-            except (TimeoutError, ValueError):
-                pass
-            else:
+        if len(self.config["model_list"]) == 1:
+            await GLOBAL_LIMITER.try_acquire(
+                ("client", self.name),
+                self.config["rate_limit"].get(self.name, None),
+                weight=max(int(token_count), 1),
+                **kwargs,
+            )
+            return
+
+        for model in self.config["model_list"]:
+            model_name = model["model_name"]
+            rate_limited = await GLOBAL_LIMITER.check(
+                ("client", model_name), self.config["rate_limit"].get(model_name, None)
+            )
+            if not rate_limited:
+                self.name = model_name
                 return
 
         raise ValueError("Rate limit exceeded for all models")
