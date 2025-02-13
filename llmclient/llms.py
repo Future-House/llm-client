@@ -583,15 +583,13 @@ class LiteLLMModel(LLMModel):
         current_model = self.name
         for model in self.config["model_list"]:
             model_name = model["model_name"]
-            if mode == RateLimitMode.INPUT_TOKENS:
-                consume_if_available = True
-            elif mode == RateLimitMode.OUTPUT_TOKENS:
-                consume_if_available = current_model == model_name
             available = await GLOBAL_LIMITER.check(
                 ("client", model_name),
                 self.config["rate_limit"].get(model_name, None),
                 weight=max(int(token_count), 1),
-                consume_if_available=consume_if_available,
+                consume_if_available=(
+                    mode == RateLimitMode.INPUT_TOKENS or current_model == model_name
+                ),
             )
             if available:
                 self.name = model_name
