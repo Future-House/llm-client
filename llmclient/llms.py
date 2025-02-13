@@ -583,7 +583,7 @@ class LiteLLMModel(LLMModel):
         if "rate_limit" not in self.config:
             return
 
-        if len(self.config["model_list"]) >= 1:
+        if len(self.config["model_list"]) > 1:
             kwargs["acquire_timeout"] = 0
 
         current_model = self.name
