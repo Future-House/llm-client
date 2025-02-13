@@ -395,23 +395,21 @@ class GlobalRateLimiter:
             )
         while True:
             elapsed = 0.0
-            while (
-                not (
-                    await self.rate_limiter.test(
-                        rate_limit,
-                        new_namespace,
-                        primary_key,
-                        cost=min(weight, rate_limit.amount),
-                    )
+            while not (
+                await self.rate_limiter.test(
+                    rate_limit,
+                    new_namespace,
+                    primary_key,
+                    cost=min(weight, rate_limit.amount),
                 )
-                and elapsed < acquire_timeout
             ):
-                await asyncio.sleep(self.WAIT_INCREMENT)
-                elapsed += self.WAIT_INCREMENT
-            if elapsed >= acquire_timeout:
-                raise TimeoutError(
-                    f"Timeout ({elapsed} secs): rate limit for key: {namespace_and_key}"
-                )
+                if elapsed < acquire_timeout:
+                    await asyncio.sleep(self.WAIT_INCREMENT)
+                    elapsed += self.WAIT_INCREMENT
+                else:
+                    raise TimeoutError(
+                        f"Timeout ({elapsed} secs): rate limit for key: {namespace_and_key}"
+                    )
 
             # If the rate limit hit is False, then we're violating the limit, so we
             # need to wait again. This can happen in race conditions.
