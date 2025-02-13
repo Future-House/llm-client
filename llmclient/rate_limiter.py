@@ -303,42 +303,6 @@ class GlobalRateLimiter:
             }
         return limit_status
 
-    async def check(
-        self,
-        namespace_and_key: tuple[str, str],
-        rate_limit: RateLimitItem | str | None = None,
-        weight: int = 1,
-        consume_if_available: bool = True,
-        machine_id: int = 0,
-    ) -> bool:
-        """Returns True if the bucket for the namespace_and_key are not rate-limited.
-
-        See the doc string for try_acquire for more details on the arguments
-        """
-        namespace, primary_key = await self.parse_namespace_and_primary_key(
-            namespace_and_key, machine_id=machine_id
-        )
-
-        rate_limit_, new_namespace = self.parse_rate_limits_and_namespace(
-            namespace, primary_key
-        )
-
-        if isinstance(rate_limit, str):
-            rate_limit = limit_parse(rate_limit)
-
-        rate_limit = rate_limit or rate_limit_
-
-        available = await self.rate_limiter.test(
-            rate_limit, new_namespace, primary_key, cost=min(weight, rate_limit.amount)
-        )
-        if not consume_if_available:
-            return available
-        if available:
-            return await self.rate_limiter.hit(
-                rate_limit, new_namespace, primary_key, cost=weight
-            )
-        return False
-
     async def try_acquire(
         self,
         namespace_and_key: tuple[str, str],
@@ -347,6 +311,7 @@ class GlobalRateLimiter:
         acquire_timeout: float = GLOBAL_RATE_LIMITER_TIMEOUT,
         weight: int = 1,
         raise_impossible_limits: bool = False,
+        consume_if_available: bool = True,
     ) -> None:
         """Returns when the limit is satisfied for the namespace_and_key.
 
@@ -370,6 +335,9 @@ class GlobalRateLimiter:
                 default is 1. (could be tokens for example)
             raise_impossible_limits (:obj:`bool`, optional): flag will raise a
                 ValueError for weights that exceed the rate.
+            consume_if_available (:obj:`bool`, optional): flag will consume the rate limit
+                if it is available.
+
 
         Raises:
             TimeoutError: if the acquire_timeout is exceeded.
@@ -410,6 +378,9 @@ class GlobalRateLimiter:
                     raise TimeoutError(
                         f"Timeout ({elapsed} secs): rate limit for key: {namespace_and_key}"
                     )
+
+            if not consume_if_available:
+                return
 
             # If the rate limit hit is False, then we're violating the limit, so we
             # need to wait again. This can happen in race conditions.
