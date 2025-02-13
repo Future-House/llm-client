@@ -299,3 +299,111 @@ async def test_embedding_rate_limits(
         )
     else:
         assert estimated_tokens_per_second > 0
+
+
+@pytest.mark.asyncio
+async def test_constructing_llm_w_multiple_models_1():
+    model_name = CommonLLMNames.GPT_4O
+    llm = LiteLLMModel(
+        name=model_name,
+        config={
+            "model_list": [
+                {
+                    "model_name": CommonLLMNames.CLAUDE_35_SONNET,
+                    "litellm_params": {
+                        "model": CommonLLMNames.CLAUDE_35_SONNET,
+                        "max_tokens": 4096,
+                    },
+                },
+                {
+                    "model_name": CommonLLMNames.GPT_4O,
+                    "litellm_params": {
+                        "model": CommonLLMNames.GPT_4O,
+                        "temperature": 1,
+                        "max_tokens": 4096,
+                    },
+                },
+            ],
+        },
+    )
+    assert llm.name == model_name
+
+    messages = [
+        Message(role="user", content="Hi"),
+    ]
+
+    results = await llm.acompletion(messages)
+
+    assert (
+        results[0].model == model_name
+    ), f"The response should be generated with the selected model {model_name}"
+    model_names = [model["model_name"] for model in llm.config["model_list"]]
+    assert (
+        model_name in model_names
+    ), f"The model {model_name} should be in the model list"
+    assert (
+        CommonLLMNames.CLAUDE_35_SONNET in model_names
+    ), f"The model {CommonLLMNames.CLAUDE_35_SONNET} should also be in the model list"
+
+
+def test_constructing_llm_w_multiple_models_2():
+    model_name = "gemini"
+    model_list = [
+        {
+            "model_name": CommonLLMNames.CLAUDE_35_SONNET,
+            "litellm_params": {
+                "model": CommonLLMNames.CLAUDE_35_SONNET,
+                "max_tokens": 4096,
+            },
+        },
+    ]
+    with pytest.raises(ValueError, match="The model name should be in the model_list"):
+        LiteLLMModel(
+            name=model_name,
+            config={
+                "model_list": model_list,
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_on_multiple_models():
+    llm = LiteLLMModel(
+        config={
+            "model_list": [
+                {
+                    "model_name": CommonLLMNames.CLAUDE_35_SONNET,
+                    "litellm_params": {
+                        "model": CommonLLMNames.CLAUDE_35_SONNET,
+                        "max_tokens": 4096,
+                    },
+                },
+                {
+                    "model_name": CommonLLMNames.GPT_4O,
+                    "litellm_params": {
+                        "model": CommonLLMNames.GPT_4O,
+                        "temperature": 1,
+                        "max_tokens": 4096 * 2,
+                    },
+                },
+            ],
+            "rate_limit": {
+                CommonLLMNames.CLAUDE_35_SONNET: "35/minute",
+                CommonLLMNames.GPT_4O: "10000/minute",
+            },
+        }
+    )
+
+    messages = [
+        Message(role="system", content="You are a helpful assistant."),
+        Message(role="user", content="What is the meaning of life?"),
+    ]
+
+    results = await llm.acompletion(messages)
+
+    assert (
+        results[0].model == CommonLLMNames.CLAUDE_35_SONNET
+    ), f"The response should be generated with {CommonLLMNames.CLAUDE_35_SONNET}"
+    assert (
+        llm.name == CommonLLMNames.GPT_4O
+    ), f"After the response was generated, we should have hit the rate limit for {CommonLLMNames.CLAUDE_35_SONNET} and changed to {CommonLLMNames.GPT_4O}"

@@ -519,6 +519,10 @@ class LiteLLMModel(LLMModel):
                 raise ValueError(
                     f"Provided name '{data['name']}' not found in model_list. Available models: {model_names}"
                 )
+            selected_model_idx = model_names.index(data["name"])
+            data["config"]["model_list"].insert(
+                0, data["config"]["model_list"].pop(selected_model_idx)
+            )
 
         if "router_kwargs" not in data["config"]:
             data["config"]["router_kwargs"] = {}
