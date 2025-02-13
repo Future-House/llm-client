@@ -477,7 +477,13 @@ class LiteLLMModel(LLMModel):
         if "config" not in data:
             data["config"] = {}
         if "name" not in data:
-            data["name"] = data["config"].get("name", cls.model_fields["name"].default)
+            if not data["config"].get("model_list", []):
+                data["name"] = data["config"].get(
+                    "name", cls.model_fields["name"].default
+                )
+            else:
+                data["name"] = data["config"]["model_list"][0]["model_name"]
+
         if "model_list" not in data["config"]:
             data["config"] = {
                 "model_list": [
@@ -517,8 +523,6 @@ class LiteLLMModel(LLMModel):
         else:
             # pylint: disable-next=possibly-used-before-assignment
             _DeploymentTypedDictValidator.validate_python(model_list)
-        if len({m["model_name"] for m in model_list}) > 1:
-            raise ValueError("Only one model name per model list is supported for now.")
         return data
 
     # SEE: https://platform.openai.com/docs/api-reference/chat/create#chat-create-tool_choice
@@ -551,13 +555,24 @@ class LiteLLMModel(LLMModel):
         return self._router
 
     async def check_rate_limit(self, token_count: float, **kwargs) -> None:
-        if "rate_limit" in self.config:
-            await GLOBAL_LIMITER.try_acquire(
-                ("client", self.name),
-                self.config["rate_limit"].get(self.name, None),
-                weight=max(int(token_count), 1),
-                **kwargs,
-            )
+        if "rate_limit" not in self.config:
+            return
+
+        for model_name in self.config["model_list"]:
+            self.name = model_name["model_name"]
+            try:
+                await GLOBAL_LIMITER.try_acquire(
+                    ("client", self.name),
+                    self.config["rate_limit"].get(self.name, None),
+                    weight=max(int(token_count), 1),
+                    **kwargs,
+                )
+            except (TimeoutError, ValueError):
+                pass
+            else:
+                return
+
+        raise ValueError("Rate limit exceeded for all models")
 
     @rate_limited
     async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:
