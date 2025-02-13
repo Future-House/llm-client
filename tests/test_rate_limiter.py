@@ -357,7 +357,10 @@ def test_constructing_llm_w_multiple_models_2():
             },
         },
     ]
-    with pytest.raises(ValueError, match="The model name should be in the model_list"):
+    with pytest.raises(
+        ValueError,
+        match=f"Provided name '{model_name}' not found in model_list. Available models: ",
+    ):
         LiteLLMModel(
             name=model_name,
             config={
