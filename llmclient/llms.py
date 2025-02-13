@@ -509,8 +509,16 @@ class LiteLLMModel(LLMModel):
                     }
                 ],
             } | data["config"]
-        else:
+        elif "name" not in data:
             data["name"] = data["config"]["model_list"][0]["model_name"]
+        else:
+            model_names = [
+                model["model_name"] for model in data["config"]["model_list"]
+            ]
+            if data["name"] not in model_names:
+                raise ValueError(
+                    f"Provided name '{data['name']}' not found in model_list. Available models: {model_names}"
+                )
 
         if "router_kwargs" not in data["config"]:
             data["config"]["router_kwargs"] = {}
