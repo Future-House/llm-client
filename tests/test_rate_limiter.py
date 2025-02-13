@@ -386,7 +386,7 @@ async def test_rate_limit_on_multiple_models():
                     "litellm_params": {
                         "model": CommonLLMNames.GPT_4O,
                         "temperature": 1,
-                        "max_tokens": 4096 * 2,
+                        "max_tokens": 4096,
                     },
                 },
             ],
@@ -397,6 +397,7 @@ async def test_rate_limit_on_multiple_models():
         }
     )
 
+    # This message has less than 35 tokens
     messages = [
         Message(role="system", content="You are a helpful assistant."),
         Message(role="user", content="What is the meaning of life?"),
@@ -410,3 +411,12 @@ async def test_rate_limit_on_multiple_models():
     assert (
         llm.name == CommonLLMNames.GPT_4O
     ), f"After the response was generated, we should have hit the rate limit for {CommonLLMNames.CLAUDE_35_SONNET} and changed to {CommonLLMNames.GPT_4O}"
+
+    messages = [
+        Message(role="user", content="Ok, tell me more"),
+    ]
+
+    results = await llm.acompletion(messages)
+    assert (
+        results[0].model == CommonLLMNames.GPT_4O
+    ), f"This response should have been generated with {CommonLLMNames.GPT_4O}"
