@@ -572,6 +572,7 @@ dev = [
     { name = "tqdm" },
     { name = "typeguard" },
     { name = "types-tqdm" },
+    { name = "vcrpy" },
 ]
 local = [
     { name = "numpy" },
@@ -582,6 +583,9 @@ progress = [
 ]
 typing = [
     { name = "types-tqdm" },
+]
+vcr = [
+    { name = "vcrpy" },
 ]
 
 [package.dev-dependencies]
@@ -596,7 +600,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "coredis" },
-    { name = "fh-llm-client", extras = ["deepseek", "local", "progress", "typing"], marker = "extra == 'dev'" },
+    { name = "fh-llm-client", extras = ["deepseek", "local", "progress", "typing", "vcr"], marker = "extra == 'dev'" },
     { name = "fhaviary", specifier = ">=0.14.0" },
     { name = "fhaviary", extras = ["xml"], marker = "extra == 'dev'" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8" },
@@ -624,6 +628,7 @@ requires-dist = [
     { name = "typeguard", marker = "extra == 'dev'" },
     { name = "types-tqdm", marker = "extra == 'typing'" },
     { name = "typing-extensions", marker = "python_full_version < '3.12'" },
+    { name = "vcrpy", marker = "extra == 'vcr'", specifier = ">=6" },
 ]
 
 [package.metadata.requires-dev]
