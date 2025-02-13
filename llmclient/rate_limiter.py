@@ -328,10 +328,12 @@ class GlobalRateLimiter:
 
         rate_limit = rate_limit or rate_limit_
 
-        test = await self.rate_limiter.test(
+        available = await self.rate_limiter.test(
             rate_limit, new_namespace, primary_key, cost=min(weight, rate_limit.amount)
         )
-        if test and consume_if_available:
+        if not consume_if_available:
+            return available
+        if available:
             return await self.rate_limiter.hit(
                 rate_limit, new_namespace, primary_key, cost=weight
             )
