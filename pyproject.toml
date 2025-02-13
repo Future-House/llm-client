@@ -43,7 +43,7 @@ deepseek = [
     "litellm>1.59.3",  # Pin for deepseek-r1 reasoning
 ]
 dev = [
-    "fh-llm-client[deepseek,local,progress,typing]",
+    "fh-llm-client[deepseek,local,progress,typing,vcr]",
     "fhaviary[xml]",
     "ipython>=8",  # Pin to keep recent
     "mypy>=1.8",  # Pin for mutable-override
@@ -67,6 +67,9 @@ local = [
 ]
 progress = ["tqdm"]
 typing = ["types-tqdm"]
+vcr = [
+    "vcrpy>=6",  # Pin for https://github.com/kevin1024/vcrpy/issues/884
+]
 
 [project.urls]
 issues = "https://github.com/Future-House/llm-client/issues"
@@ -152,6 +155,7 @@ ignore_missing_imports = true
 # Per-module configuration options
 module = [
     "tree",  # SEE: https://github.com/google-deepmind/tree/issues/84
+    "vcr.*",  # SEE: https://github.com/kevin1024/vcrpy/issues/780
 ]
 
 [tool.pylint]

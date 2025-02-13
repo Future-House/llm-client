@@ -5,7 +5,8 @@ import logging.config
 import os
 from collections.abc import Awaitable, Callable, Iterable
 from inspect import signature
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import litellm
 
@@ -13,6 +14,9 @@ try:
     from tqdm.asyncio import tqdm
 except ImportError:
     tqdm = None  # type: ignore[assignment,misc]
+
+if TYPE_CHECKING:
+    import vcr.request
 
 
 def configure_llm_logs() -> None:
@@ -96,3 +100,29 @@ async def gather_with_concurrency(
                 " Please run `pip install fh-llm-client[progress]`."
             ) from None
     return await asyncio.gather(*(sem_coro(c) for c in coros))
+
+
+OPENAI_API_KEY_HEADER = "authorization"
+ANTHROPIC_API_KEY_HEADER = "x-api-key"
+CROSSREF_KEY_HEADER = "Crossref-Plus-API-Token"
+SEMANTIC_SCHOLAR_KEY_HEADER = "x-api-key"
+
+# SEE: https://github.com/kevin1024/vcrpy/blob/v6.0.1/vcr/config.py#L43
+VCR_DEFAULT_MATCH_ON = "method", "scheme", "host", "port", "path", "query"
+
+
+def filter_api_keys(request: "vcr.request.Request") -> "vcr.request.Request":
+    """Filter out API keys from request URI query parameters."""
+    parsed_uri = urlparse(request.uri)
+    if parsed_uri.query:  # If there's a query that may contain API keys
+        query_params = parse_qs(parsed_uri.query)
+
+        # Filter out the Google Gemini API key, if present
+        if "key" in query_params:
+            query_params["key"] = ["<FILTERED>"]
+
+        # Rebuild the URI, with filtered parameters
+        filtered_query = urlencode(query_params, doseq=True)
+        request.uri = parsed_uri._replace(query=filtered_query).geturl()
+
+    return request
