@@ -86,6 +86,11 @@ class CommonLLMNames(StrEnum):
     )
 
 
+class RateLimitMode(StrEnum):
+    INPUT_TOKENS = "input_tokens"
+    OUTPUT_TOKENS = "output_tokens"
+
+
 def sum_logprobs(choice: litellm.utils.Choices | list[float]) -> float | None:
     """Calculate the sum of the log probabilities of an LLM completion (a Choices object).
 
@@ -401,7 +406,7 @@ def rate_limited(func):
         else:
             token_count = 0  # Default if method is unknown
 
-        await self.check_rate_limit(token_count)
+        await self.check_rate_limit(token_count, mode=RateLimitMode.INPUT_TOKENS)
 
         # If wrapping a generator, count the tokens for each
         # portion before yielding
@@ -414,7 +419,9 @@ def rate_limited(func):
                         token_count = int(
                             len(item.text or "") / CHARACTERS_PER_TOKEN_ASSUMPTION
                         )
-                    await self.check_rate_limit(token_count)
+                    await self.check_rate_limit(
+                        token_count, mode=RateLimitMode.OUTPUT_TOKENS
+                    )
                     yield item
 
             return rate_limited_generator()
@@ -422,7 +429,10 @@ def rate_limited(func):
         # We checked isasyncgenfunction above, so this must be an Awaitable
         result = await func(self, *args, **kwargs)
         if func.__name__ == "acompletion" and isinstance(result, list):
-            await self.check_rate_limit(sum(r.completion_count for r in result))
+            await self.check_rate_limit(
+                sum(r.completion_count for r in result),
+                mode=RateLimitMode.OUTPUT_TOKENS,
+            )
         return result
 
     return wrapper
@@ -552,7 +562,12 @@ class LiteLLMModel(LLMModel):
                 )
         return self._router
 
-    async def check_rate_limit(self, token_count: float, **kwargs) -> None:
+    async def check_rate_limit(
+        self,
+        token_count: float,
+        mode: RateLimitMode,
+        **kwargs,
+    ) -> None:
         if "rate_limit" not in self.config:
             return
 
@@ -565,14 +580,25 @@ class LiteLLMModel(LLMModel):
             )
             return
 
+        current_model = self.name
         for model in self.config["model_list"]:
             model_name = model["model_name"]
-            limit_reached = await GLOBAL_LIMITER.check(
-                ("client", model_name), self.config["rate_limit"].get(model_name, None)
+            if mode == RateLimitMode.INPUT_TOKENS:
+                consume_if_available = True
+            elif mode == RateLimitMode.OUTPUT_TOKENS:
+                consume_if_available = current_model == model_name
+            available = await GLOBAL_LIMITER.check(
+                ("client", model_name),
+                self.config["rate_limit"].get(model_name, None),
+                weight=max(int(token_count), 1),
+                consume_if_available=consume_if_available,
             )
-            if not limit_reached:
+            if available:
                 self.name = model_name
                 return
+            logger.warning(
+                f"Rate limit exceeded for model {model_name}, trying next model"
+            )
 
         raise ValueError("Rate limit exceeded for all models")
 

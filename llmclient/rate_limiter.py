@@ -306,6 +306,9 @@ class GlobalRateLimiter:
     async def check(
         self,
         namespace_and_key: tuple[str, str],
+        rate_limit: RateLimitItem | str | None = None,
+        weight: int = 1,
+        consume_if_available: bool = True,
         machine_id: int = 0,
     ) -> bool:
         """Returns True if the bucket for the namespace_and_key are not rate-limited.
@@ -316,12 +319,22 @@ class GlobalRateLimiter:
             namespace_and_key, machine_id=machine_id
         )
 
-        rate_limit, new_namespace = self.parse_rate_limits_and_namespace(
+        rate_limit_, new_namespace = self.parse_rate_limits_and_namespace(
             namespace, primary_key
         )
-        test = await self.rate_limiter.test(rate_limit, new_namespace, primary_key)
-        if test:
-            return await self.rate_limiter.hit(rate_limit, new_namespace, primary_key)
+
+        if isinstance(rate_limit, str):
+            rate_limit = limit_parse(rate_limit)
+
+        rate_limit = rate_limit or rate_limit_
+
+        test = await self.rate_limiter.test(
+            rate_limit, new_namespace, primary_key, cost=min(weight, rate_limit.amount)
+        )
+        if test and consume_if_available:
+            return await self.rate_limiter.hit(
+                rate_limit, new_namespace, primary_key, cost=weight
+            )
         return False
 
     async def try_acquire(
