@@ -17,7 +17,7 @@ from llmclient.llms import (
     validate_json_completion,
 )
 from llmclient.types import LLMResult
-from tests.conftest import VCR_DEFAULT_MATCH_ON
+from llmclient.utils import VCR_DEFAULT_MATCH_ON
 
 
 class TestLiteLLMModel:
