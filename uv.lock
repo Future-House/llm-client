@@ -601,7 +601,7 @@ requires-dist = [
     { name = "fhaviary", extras = ["xml"], marker = "extra == 'dev'" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "limits" },
-    { name = "litellm", specifier = ">=1.59.3" },
+    { name = "litellm", specifier = "<1.60.7" },
     { name = "litellm", marker = "extra == 'deepseek'", specifier = ">1.59.3" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
     { name = "numpy", marker = "extra == 'local'" },
