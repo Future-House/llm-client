@@ -476,15 +476,11 @@ class LiteLLMModel(LLMModel):
         """
         if "config" not in data:
             data["config"] = {}
-        if "name" not in data:
-            if not data["config"].get("model_list", []):
+        if "model_list" not in data["config"]:
+            if "name" not in data:
                 data["name"] = data["config"].get(
                     "name", cls.model_fields["name"].default
                 )
-            else:
-                data["name"] = data["config"]["model_list"][0]["model_name"]
-
-        if "model_list" not in data["config"]:
             data["config"] = {
                 "model_list": [
                     {
@@ -503,6 +499,8 @@ class LiteLLMModel(LLMModel):
                     }
                 ],
             } | data["config"]
+        else:
+            data["name"] = data["config"]["model_list"][0]["model_name"]
 
         if "router_kwargs" not in data["config"]:
             data["config"]["router_kwargs"] = {}
@@ -569,10 +567,10 @@ class LiteLLMModel(LLMModel):
 
         for model in self.config["model_list"]:
             model_name = model["model_name"]
-            rate_limited = await GLOBAL_LIMITER.check(
+            limit_reached = await GLOBAL_LIMITER.check(
                 ("client", model_name), self.config["rate_limit"].get(model_name, None)
             )
-            if not rate_limited:
+            if not limit_reached:
                 self.name = model_name
                 return
 
