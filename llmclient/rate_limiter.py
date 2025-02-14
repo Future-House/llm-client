@@ -384,7 +384,6 @@ class GlobalRateLimiter:
             rate_limits = [rate_limits]
 
         elapsed = 0.0
-        remaining_weight = weight
 
         while True:
             for namespace_and_key, rate_limit in zip(
@@ -400,7 +399,7 @@ class GlobalRateLimiter:
                         namespace_and_key,
                         rate_limit,
                         machine_id,
-                        remaining_weight,
+                        weight,
                         raise_impossible_limits,
                     )
                 )
@@ -418,11 +417,11 @@ class GlobalRateLimiter:
                 rate_limit,
                 new_namespace,
                 primary_key,
-                cost=min(remaining_weight, rate_limit.amount),
+                cost=min(weight, rate_limit.amount),
             ):
                 # we need to keep trying when we have an "impossible" limit
-                if rate_limit.amount < remaining_weight:
-                    remaining_weight -= rate_limit.amount
+                if rate_limit.amount < weight:
+                    weight -= rate_limit.amount
                     acquire_timeout = max(acquire_timeout - elapsed, 1.0)
                     continue
                 break
