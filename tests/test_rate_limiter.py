@@ -302,7 +302,7 @@ async def test_embedding_rate_limits(
 
 
 @pytest.mark.asyncio
-async def test_rate_limit_on_multiple_models():
+async def test_cascading_models():
     llm = LiteLLMModel(
         config={
             "model_list": [
@@ -352,3 +352,86 @@ async def test_rate_limit_on_multiple_models():
     assert (
         results[0].model == CommonLLMNames.GPT_4O
     ), f"This response should have been generated with {CommonLLMNames.GPT_4O}"
+
+
+MULTIPLE_LLM_CONFIG_W_RATE_LIMITS = [
+    {
+        "config": {
+            "model_list": [
+                {
+                    "model_name": CommonLLMNames.CLAUDE_35_SONNET,
+                    "litellm_params": {
+                        "model": CommonLLMNames.CLAUDE_35_SONNET,
+                        "max_tokens": 4096,
+                    },
+                },
+                {
+                    "model_name": CommonLLMNames.GPT_4O,
+                    "litellm_params": {
+                        "model": CommonLLMNames.GPT_4O,
+                        "temperature": 1,
+                        "max_tokens": 4096,
+                    },
+                },
+            ],
+            "rate_limit": {
+                CommonLLMNames.CLAUDE_35_SONNET: RateLimitItemPerSecond(2, 1),
+                CommonLLMNames.GPT_4O: RateLimitItemPerSecond(1000, 1),
+            },
+        }
+    },
+]
+
+multiple_llm_rate_limit_configurations = list(
+    product(MULTIPLE_LLM_CONFIG_W_RATE_LIMITS, LLM_METHOD_AND_INPUTS)
+)
+
+
+@pytest.mark.parametrize(
+    ("multiple_llm_config_w_rate_limits", "llm_method_kwargs"),
+    multiple_llm_rate_limit_configurations,
+)
+@pytest.mark.asyncio
+async def test_rate_limit_on_parallel_completion_multiple_models(
+    multiple_llm_config_w_rate_limits: dict[str, Any],
+    llm_method_kwargs: dict[str, Any],
+) -> None:
+    llm = LiteLLMModel(**multiple_llm_config_w_rate_limits)
+
+    if "iter" not in llm_method_kwargs["method"]:
+        estimated_tokens_per_second = await time_n_llm_methods(
+            llm,
+            llm_method_kwargs["method"],
+            80,
+            use_gather=True,
+            **llm_method_kwargs["kwargs"],
+        )
+        if "rate_limit" in llm.config:
+            max_multiple = max(
+                llm.config["rate_limit"][key].multiples
+                for key in llm.config["rate_limit"]
+            )
+            sum_amounts = sum(
+                (
+                    llm.config["rate_limit"][key].amount
+                    / llm.config["rate_limit"][key].multiples
+                )
+                * max_multiple
+                for key in llm.config["rate_limit"]
+            )
+            first_rate_limit = llm.config["rate_limit"][
+                next(iter(llm.config["rate_limit"].keys()))
+            ]
+            first_tokens_per_second = (
+                first_rate_limit.amount / first_rate_limit.multiples
+            )
+
+            total_rate_limit = RateLimitItemPerSecond(sum_amounts, max_multiple)
+            max_tokens_per_second = total_rate_limit.amount / total_rate_limit.multiples
+
+            assert estimated_tokens_per_second / first_tokens_per_second > 1.0
+            assert estimated_tokens_per_second / max_tokens_per_second < (
+                1.0 + ACCEPTABLE_RATE_LIMIT_ERROR
+            )
+        else:
+            assert estimated_tokens_per_second > 0

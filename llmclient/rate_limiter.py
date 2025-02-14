@@ -311,7 +311,7 @@ class GlobalRateLimiter:
         weight: int,
         raise_impossible_limits: bool,
     ) -> tuple[bool, RateLimitItem, str, str, int]:
-        """Helper method to check and consume a single rate limit."""
+        """Helper method to check a single rate limit."""
         namespace, primary_key = await self.parse_namespace_and_primary_key(
             namespace_and_key, machine_id=machine_id
         )
@@ -389,11 +389,6 @@ class GlobalRateLimiter:
             for namespace_and_key, rate_limit in zip(
                 namespaces_and_keys, rate_limits, strict=True
             ):
-                if elapsed >= acquire_timeout:
-                    raise TimeoutError(
-                        f"Timeout ({elapsed} secs): rate limit for key: {namespace_and_key}"
-                    )
-
                 can_be_consumed, rate_limit, new_namespace, primary_key, _ = (
                     await self._check_rate_limit(
                         namespace_and_key,
@@ -403,10 +398,13 @@ class GlobalRateLimiter:
                         raise_impossible_limits,
                     )
                 )
-
                 if can_be_consumed:
                     break
             else:
+                if elapsed >= acquire_timeout:
+                    raise TimeoutError(
+                        f"Timeout ({elapsed} secs): rate limit for key: {namespace_and_key[1]!s}"
+                    )
                 await asyncio.sleep(self.WAIT_INCREMENT)
                 elapsed += self.WAIT_INCREMENT
                 continue
