@@ -86,11 +86,6 @@ class CommonLLMNames(StrEnum):
     )
 
 
-class RateLimitMode(StrEnum):
-    INPUT_TOKENS = "input_tokens"
-    OUTPUT_TOKENS = "output_tokens"
-
-
 def sum_logprobs(choice: litellm.utils.Choices | list[float]) -> float | None:
     """Calculate the sum of the log probabilities of an LLM completion (a Choices object).
 
