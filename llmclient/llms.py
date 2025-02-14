@@ -406,7 +406,7 @@ def rate_limited(func):
         else:
             token_count = 0  # Default if method is unknown
 
-        await self.check_rate_limit(token_count, mode=RateLimitMode.INPUT_TOKENS)
+        await self.check_rate_limit(token_count)
 
         # If wrapping a generator, count the tokens for each
         # portion before yielding
@@ -419,9 +419,7 @@ def rate_limited(func):
                         token_count = int(
                             len(item.text or "") / CHARACTERS_PER_TOKEN_ASSUMPTION
                         )
-                    await self.check_rate_limit(
-                        token_count, mode=RateLimitMode.OUTPUT_TOKENS
-                    )
+                    await self.check_rate_limit(token_count)
                     yield item
 
             return rate_limited_generator()
@@ -429,10 +427,8 @@ def rate_limited(func):
         # We checked isasyncgenfunction above, so this must be an Awaitable
         result = await func(self, *args, **kwargs)
         if func.__name__ == "acompletion" and isinstance(result, list):
-            await self.check_rate_limit(
-                sum(r.completion_count for r in result),
-                mode=RateLimitMode.OUTPUT_TOKENS,
-            )
+            await self.consume_rate_limit(sum(r.completion_count for r in result))
+
         return result
 
     return wrapper
@@ -577,36 +573,32 @@ class LiteLLMModel(LLMModel):
     async def check_rate_limit(
         self,
         token_count: float,
-        mode: RateLimitMode,
         **kwargs,
     ) -> None:
         if "rate_limit" not in self.config:
             return
 
-        if len(self.config["model_list"]) > 1:
-            kwargs["acquire_timeout"] = 0
+        _, successful_acquire_model_name = await GLOBAL_LIMITER.try_acquire(
+            [("client", model["model_name"]) for model in self.config["model_list"]],
+            [
+                self.config["rate_limit"].get(model["model_name"], None)
+                for model in self.config["model_list"]
+            ],
+            weight=max(int(token_count), 1),
+            **kwargs,
+        )
+        self.name = successful_acquire_model_name
 
-        current_model = self.name
-        for model in self.config["model_list"]:
-            model_name = model["model_name"]
-            try:
-                await GLOBAL_LIMITER.try_acquire(
-                    ("client", model_name),
-                    self.config["rate_limit"].get(model_name, None),
-                    weight=max(int(token_count), 1),
-                    consume_if_available=(
-                        mode == RateLimitMode.INPUT_TOKENS
-                        or current_model == model_name
-                    ),
-                    **kwargs,
-                )
-            except TimeoutError:
-                logger.warning(f"Rate limit exceeded for model {model_name}")
-            else:
-                self.name = model_name
-                return
+    async def consume_rate_limit(self, token_count: float, **kwargs):
+        if "rate_limit" not in self.config:
+            return
 
-        raise ValueError("Rate limit exceeded for all models")
+        await GLOBAL_LIMITER.consume(
+            ("client", self.name),
+            self.config["rate_limit"].get(self.name, None),
+            weight=max(int(token_count), 1),
+            **kwargs,
+        )
 
     @rate_limited
     async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:

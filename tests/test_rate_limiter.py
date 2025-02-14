@@ -409,8 +409,8 @@ async def test_rate_limit_on_multiple_models():
         results[0].model == CommonLLMNames.CLAUDE_35_SONNET
     ), f"The response should be generated with {CommonLLMNames.CLAUDE_35_SONNET}"
     assert (
-        llm.name == CommonLLMNames.GPT_4O
-    ), f"After the response was generated, we should have hit the rate limit for {CommonLLMNames.CLAUDE_35_SONNET} and changed to {CommonLLMNames.GPT_4O}"
+        llm.name == CommonLLMNames.CLAUDE_35_SONNET
+    ), f"The model should still be {CommonLLMNames.CLAUDE_35_SONNET}"
 
     messages = [
         Message(role="user", content="Ok, tell me more"),

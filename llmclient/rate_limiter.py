@@ -303,46 +303,15 @@ class GlobalRateLimiter:
             }
         return limit_status
 
-    async def try_acquire(
+    async def _check_rate_limit(
         self,
         namespace_and_key: tuple[str, str],
-        rate_limit: RateLimitItem | str | None = None,
-        machine_id: int = 0,
-        acquire_timeout: float = GLOBAL_RATE_LIMITER_TIMEOUT,
-        weight: int = 1,
-        raise_impossible_limits: bool = False,
-        consume_if_available: bool = True,
-    ) -> None:
-        """Returns when the limit is satisfied for the namespace_and_key.
-
-        Args:
-            namespace_and_key (:obj:`tuple[str, str]`): is
-                composed of a tuple with namespace (e.g. "get") and a primary-key
-                (e.g. "arxiv.org"). namespaces can be nested with multiple '|',
-                primary-keys in the "get" namespace will be stripped to the domain.
-            rate_limit (:obj:`RateLimitItem | str | None`, optional): Optional
-                RateLimitItem to be used for the namespace and primary-key.
-                If not provided, RATE_CONFIG will be used to find the rate limit.
-                Can also use a string of the form:
-                [count] [per|/] [n (optional)] [second|minute|hour|day|month|year]
-            machine_id (:obj:`int`, optional): will be used to modify the namespace
-                of GET requests if the primary key is not in the
-                NO_MACHINE_ID_EXTENSIONS list. In that case, the outbound IP will be
-                used to modify the namespace.
-            acquire_timeout (:obj:`float`, optional): is the maximum time (in seconds) to
-                wait for the rate limit to be satisfied.
-            weight (:obj:`int`, optional): is the cost of the request,
-                default is 1. (could be tokens for example)
-            raise_impossible_limits (:obj:`bool`, optional): flag will raise a
-                ValueError for weights that exceed the rate.
-            consume_if_available (:obj:`bool`, optional): flag will consume the rate limit
-                if it is available.
-
-
-        Raises:
-            TimeoutError: if the acquire_timeout is exceeded.
-            ValueError: if the weight exceeds the rate limit and raise_impossible_limits is True.
-        """
+        rate_limit: RateLimitItem | str | None,
+        machine_id: int,
+        weight: int,
+        raise_impossible_limits: bool,
+    ) -> tuple[bool, RateLimitItem, str, str, int]:
+        """Helper method to check and consume a single rate limit."""
         namespace, primary_key = await self.parse_namespace_and_primary_key(
             namespace_and_key, machine_id=machine_id
         )
@@ -358,29 +327,90 @@ class GlobalRateLimiter:
 
         if rate_limit.amount < weight and raise_impossible_limits:
             raise ValueError(
-                f"Weight ({weight}) > RateLimit ({rate_limit}), cannot satisfy rate"
-                " limit."
+                f"Weight ({weight}) > RateLimit ({rate_limit}), cannot satisfy rate limit."
             )
+
+        can_be_consumed = await self.rate_limiter.test(
+            rate_limit,
+            new_namespace,
+            primary_key,
+            cost=min(weight, rate_limit.amount),
+        )
+
+        return can_be_consumed, rate_limit, new_namespace, primary_key, weight
+
+    async def try_acquire(
+        self,
+        namespaces_and_keys: list[tuple[str, str]] | tuple[str, str],
+        rate_limits: (
+            list[RateLimitItem | str | None] | RateLimitItem | str | None
+        ) = None,
+        machine_id: int = 0,
+        acquire_timeout: float = GLOBAL_RATE_LIMITER_TIMEOUT,
+        weight: int = 1,
+        raise_impossible_limits: bool = False,
+    ) -> tuple[str, str]:
+        """Returns when the limit is satisfied for the namespace_and_key.
+
+        Args:
+            namespaces_and_keys (:obj:`list[tuple[str, str]] | tuple[str, str]`): is
+                composed of tuple(s) with namespace(s) (e.g. "get") and a primary-key(s)
+                (e.g. "arxiv.org"). namespaces can be nested with multiple '|',
+                primary-keys in the "get" namespace will be stripped to the domain.
+            rate_limits (:obj:`list[RateLimitItem | str | None] | RateLimitItem | str | None`, optional): Optional
+                RateLimitItem(s) to be used for the namespace(s) and primary-key(s).
+                If not provided, RATE_CONFIG will be used to find the rate limit.
+                Can also use a string of the form:
+                [count] [per|/] [n (optional)] [second|minute|hour|day|month|year]
+            machine_id (:obj:`int`, optional): will be used to modify the namespace
+                of GET requests if the primary key is not in the
+                NO_MACHINE_ID_EXTENSIONS list. In that case, the outbound IP will be
+                used to modify the namespace.
+            acquire_timeout (:obj:`float`, optional): is the maximum time (in seconds) to
+                wait for the rate limit to be satisfied.
+            weight (:obj:`int`, optional): is the cost of the request,
+                default is 1. (could be tokens for example)
+            raise_impossible_limits (:obj:`bool`, optional): flag will raise a
+                ValueError for weights that exceed the rate.
+
+        Raises:
+            TimeoutError: if the acquire_timeout is exceeded.
+            ValueError: if the weight exceeds the rate limit and raise_impossible_limits is True.
+        """
+        if isinstance(namespaces_and_keys, tuple):
+            namespaces_and_keys = [namespaces_and_keys]
+
+        if not isinstance(rate_limits, list):
+            rate_limits = [rate_limits]
+
+        elapsed = 0.0
+        remaining_weight = weight
+
         while True:
-            elapsed = 0.0
-            while not (
-                await self.rate_limiter.test(
-                    rate_limit,
-                    new_namespace,
-                    primary_key,
-                    cost=min(weight, rate_limit.amount),
-                )
+            for namespace_and_key, rate_limit in zip(
+                namespaces_and_keys, rate_limits, strict=True
             ):
-                if elapsed < acquire_timeout:
-                    await asyncio.sleep(self.WAIT_INCREMENT)
-                    elapsed += self.WAIT_INCREMENT
-                else:
+                if elapsed >= acquire_timeout:
                     raise TimeoutError(
                         f"Timeout ({elapsed} secs): rate limit for key: {namespace_and_key}"
                     )
 
-            if not consume_if_available:
-                return
+                can_be_consumed, rate_limit, new_namespace, primary_key, _ = (
+                    await self._check_rate_limit(
+                        namespace_and_key,
+                        rate_limit,
+                        machine_id,
+                        remaining_weight,
+                        raise_impossible_limits,
+                    )
+                )
+
+                if can_be_consumed:
+                    break
+            else:
+                await asyncio.sleep(self.WAIT_INCREMENT)
+                elapsed += self.WAIT_INCREMENT
+                continue
 
             # If the rate limit hit is False, then we're violating the limit, so we
             # need to wait again. This can happen in race conditions.
@@ -388,15 +418,44 @@ class GlobalRateLimiter:
                 rate_limit,
                 new_namespace,
                 primary_key,
-                cost=min(weight, rate_limit.amount),
+                cost=min(remaining_weight, rate_limit.amount),
             ):
                 # we need to keep trying when we have an "impossible" limit
-                if rate_limit.amount < weight:
-                    weight -= rate_limit.amount
+                if rate_limit.amount < remaining_weight:
+                    remaining_weight -= rate_limit.amount
                     acquire_timeout = max(acquire_timeout - elapsed, 1.0)
                     continue
                 break
             acquire_timeout = max(acquire_timeout - elapsed, 1.0)
+
+        return namespace_and_key
+
+    async def consume(
+        self,
+        namespace_and_key: tuple[str, str],
+        rate_limit: RateLimitItem | str | None = None,
+        weight: int = 1,
+        machine_id: int = 0,
+    ):
+        namespace, primary_key = await self.parse_namespace_and_primary_key(
+            namespace_and_key, machine_id=machine_id
+        )
+
+        rate_limit_, new_namespace = self.parse_rate_limits_and_namespace(
+            namespace, primary_key
+        )
+
+        if isinstance(rate_limit, str):
+            rate_limit = limit_parse(rate_limit)
+
+        rate_limit = rate_limit or rate_limit_
+
+        await self.rate_limiter.hit(
+            rate_limit,
+            new_namespace,
+            primary_key,
+            cost=min(weight, rate_limit.amount),
+        )
 
 
 GLOBAL_LIMITER = GlobalRateLimiter()
