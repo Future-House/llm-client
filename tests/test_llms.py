@@ -58,6 +58,60 @@ class TestLiteLLMModel:
         assert model4.config["model_list"][0]["litellm_params"]["temperature"] == 0.5
         assert model4.config["model_list"][0]["litellm_params"]["max_tokens"] == 100
 
+        # Test passing model name not in model list
+        selected_model = "gemini"
+        other_model = CommonLLMNames.CLAUDE_35_SONNET
+        with pytest.raises(
+            ValueError,
+            match=f"Provided name '{selected_model}' not found in model_list. Available models: ",
+        ):
+            LiteLLMModel(
+                name=selected_model,
+                config={
+                    "model_list": [
+                        {
+                            "model_name": other_model,
+                            "litellm_params": {
+                                "model": other_model,
+                                "max_tokens": 4096,
+                            },
+                        },
+                    ],
+                },
+            )
+
+        # Test passing model name and model list
+        selected_model = CommonLLMNames.GPT_4O
+        other_model = CommonLLMNames.CLAUDE_35_SONNET
+        llm = LiteLLMModel(
+            name=selected_model,
+            config={
+                "model_list": [
+                    {
+                        "model_name": other_model,
+                        "litellm_params": {
+                            "model": other_model,
+                            "max_tokens": 4096,
+                        },
+                    },
+                    {
+                        "model_name": selected_model,
+                        "litellm_params": {
+                            "model": selected_model,
+                            "temperature": 1,
+                            "max_tokens": 4096,
+                        },
+                    },
+                ],
+            },
+        )
+        assert llm.name == selected_model
+        model_names = [model["model_name"] for model in llm.config["model_list"]]
+        assert model_names == [
+            selected_model,
+            other_model,
+        ], f"The model list should contain {selected_model} and {other_model}, in that order"
+
     @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
     @pytest.mark.parametrize(
         "config",
