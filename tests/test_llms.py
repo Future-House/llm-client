@@ -693,7 +693,7 @@ def test_json_schema_validation() -> None:
     validate_json_completion(mock_completion3, DummyModel)
 
 
-# @pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
+@pytest.mark.vcr(match_on=[*VCR_DEFAULT_MATCH_ON, "body"])
 @pytest.mark.asyncio
 async def test_deepseek_model():
     llm = LiteLLMModel(
@@ -726,6 +726,7 @@ async def test_deepseek_model():
     for result in results:
         assert result.reasoning_content
 
+@pytest.mark.vcr()
 @pytest.mark.asyncio
 async def test_openrouter_reasoning():
     llm = LiteLLMModel(name="openrouter/deepseek/deepseek-r1", config={"n": 1})
@@ -737,6 +738,4 @@ async def test_openrouter_reasoning():
 
     outputs: list[str] = []
     with pytest.raises(NotImplementedError):
-        async for result in await llm.call(messages, include_reasoning=True, callbacks=[outputs.append]):
-            assert result.reasoning_content
-
+        await llm.call(messages, include_reasoning=True, callbacks=[outputs.append])

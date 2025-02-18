@@ -100,7 +100,9 @@ def sum_logprobs(choice: litellm.utils.Choices | list[float]) -> float | None:
         if not logprob_obj:
             return None
 
-        if isinstance(logprob_obj, dict) and logprob_obj.get("content", None):
+        if isinstance(
+            logprob_obj, dict | litellm.types.utils.ChoiceLogprobs
+        ) and logprob_obj.get("content", None):
             return sum(
                 logprob_info["logprob"] for logprob_info in logprob_obj["content"]
             )
@@ -597,7 +599,7 @@ class LiteLLMModel(LLMModel):
 
             reasoning_content = None
             if (
-                hasattr(completion.message, "provider_specific_fields") 
+                hasattr(completion.message, "provider_specific_fields")
                 and completion.message.provider_specific_fields is not None
             ):
                 # DeepSeek's reasoning:
@@ -605,7 +607,7 @@ class LiteLLMModel(LLMModel):
                 provider_specific_fields = completion.message.provider_specific_fields
                 if isinstance(provider_specific_fields, dict):
                     reasoning_content = provider_specific_fields.get(
-                        "reasoning_content", None
+                        "reasoning_content"
                     )
             elif hasattr(completion.message, "reasoning"):
                 # OpenRouter's reasoning:
@@ -637,20 +639,23 @@ class LiteLLMModel(LLMModel):
                 "Reasoning with OpenRouter via `include_reasoning` is not supported in streaming mode."
                 "https://github.com/BerriAI/litellm/issues/8631"
                 "Consider `model=deepseek/deepseek-r1` instead."
-                )
+            )
         # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
         prompts = cast(
             list[litellm.types.llms.openai.AllMessageValues],
             [m.model_dump(by_alias=True) for m in messages if m.content],
         )
+        stream_options = {
+            "include_usage": True,
+        }
+        if kwargs.get("include_reasoning"):
+            stream_options["include_reasoning"] = True
+
         stream_completions = await track_costs_iter(self.router.acompletion)(
             self.name,
             prompts,
             stream=True,
-            stream_options={
-                "include_usage": True,
-                "include_reasoning": kwargs.get("include_reasoning", False),
-            },
+            stream_options=stream_options,
             **kwargs,
         )
         start_clock = asyncio.get_running_loop().time()
