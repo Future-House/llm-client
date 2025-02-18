@@ -602,7 +602,7 @@ class LiteLLMModel(LLMModel):
                 hasattr(completion.message, "provider_specific_fields")
                 and completion.message.provider_specific_fields is not None
             ):
-                # DeepSeek's reasoning:
+                # NOTE: DeepSeek's reasoning was added in:
                 # https://github.com/BerriAI/litellm/issues/7877
                 provider_specific_fields = completion.message.provider_specific_fields
                 if isinstance(provider_specific_fields, dict):
@@ -671,7 +671,7 @@ class LiteLLMModel(LLMModel):
             outputs.append(delta.content or "")
             role = delta.role or role
             if hasattr(delta, "reasoning_content"):
-                # DeepSeek's reasoning:
+                # NOTE: DeepSeek's reasoning was added in:
                 # https://github.com/BerriAI/litellm/issues/7877
                 reasoning_content.append(delta.reasoning_content or "")
         text = "".join(outputs)
