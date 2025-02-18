@@ -738,5 +738,8 @@ async def test_openrouter_reasoning():
     assert results[0].reasoning_content
 
     outputs: list[str] = []
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(
+        NotImplementedError,
+        match=r"Reasoning with OpenRouter via `include_reasoning` is not supported in streaming mode.*",
+    ):
         await llm.call(messages, include_reasoning=True, callbacks=[outputs.append])
