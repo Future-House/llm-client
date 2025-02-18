@@ -726,7 +726,8 @@ async def test_deepseek_model():
     for result in results:
         assert result.reasoning_content
 
-@pytest.mark.vcr()
+
+@pytest.mark.vcr
 @pytest.mark.asyncio
 async def test_openrouter_reasoning():
     llm = LiteLLMModel(name="openrouter/deepseek/deepseek-r1", config={"n": 1})
