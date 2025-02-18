@@ -596,12 +596,22 @@ class LiteLLMModel(LLMModel):
                 output_messages = [Message(**completion.message.model_dump())]
 
             reasoning_content = None
-            if hasattr(completion.message, "provider_specific_fields"):
+            if (
+                hasattr(completion.message, "provider_specific_fields") 
+                and completion.message.provider_specific_fields is not None
+            ):
+                # DeepSeek's reasoning:
+                # https://github.com/BerriAI/litellm/issues/7877
                 provider_specific_fields = completion.message.provider_specific_fields
                 if isinstance(provider_specific_fields, dict):
                     reasoning_content = provider_specific_fields.get(
                         "reasoning_content", None
                     )
+            elif hasattr(completion.message, "reasoning"):
+                # OpenRouter's reasoning:
+                # https://github.com/BerriAI/litellm/issues/8130
+                # https://openrouter.ai/docs/api-reference/parameters#include-reasoning
+                reasoning_content = completion.message.reasoning
 
             results.append(
                 LLMResult(
@@ -622,6 +632,12 @@ class LiteLLMModel(LLMModel):
     async def acompletion_iter(
         self, messages: list[Message], **kwargs
     ) -> AsyncIterable[LLMResult]:
+        if kwargs.get("include_reasoning"):
+            raise NotImplementedError(
+                "Reasoning with OpenRouter via `include_reasoning` is not supported in streaming mode."
+                "https://github.com/BerriAI/litellm/issues/8631"
+                "Consider `model=deepseek/deepseek-r1` instead."
+                )
         # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
         prompts = cast(
             list[litellm.types.llms.openai.AllMessageValues],
@@ -631,13 +647,17 @@ class LiteLLMModel(LLMModel):
             self.name,
             prompts,
             stream=True,
-            stream_options={"include_usage": True},
+            stream_options={
+                "include_usage": True,
+                "include_reasoning": kwargs.get("include_reasoning", False),
+            },
             **kwargs,
         )
         start_clock = asyncio.get_running_loop().time()
         outputs = []
         logprobs = []
         role = None
+        reasoning_content = []
         async for completion in stream_completions:
             choice = completion.choices[0]
             delta = choice.delta
@@ -645,10 +665,10 @@ class LiteLLMModel(LLMModel):
                 logprobs.append(choice.logprobs.content[0].logprob or 0)
             outputs.append(delta.content or "")
             role = delta.role or role
-            # NOTE: litellm is not populating provider_specific_fields in streaming mode.
-            # TODO: Get reasoning_content when this issue is fixed
-            # https://github.com/BerriAI/litellm/issues/7942
-
+            if hasattr(delta, "reasoning_content"):
+                # DeepSeek's reasoning:
+                # https://github.com/BerriAI/litellm/issues/7877
+                reasoning_content.append(delta.reasoning_content or "")
         text = "".join(outputs)
         result = LLMResult(
             model=self.name,
@@ -656,6 +676,7 @@ class LiteLLMModel(LLMModel):
             prompt=messages,
             messages=[Message(role=role, content=text)],
             logprob=sum_logprobs(logprobs),
+            reasoning_content="".join(reasoning_content),
         )
 
         if text:
