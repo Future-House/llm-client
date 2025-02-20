@@ -9,6 +9,14 @@ from typing import Any
 import pytest
 from dotenv import load_dotenv
 
+from llmclient.utils import (
+    ANTHROPIC_API_KEY_HEADER,
+    CROSSREF_KEY_HEADER,
+    OPENAI_API_KEY_HEADER,
+    SEMANTIC_SCHOLAR_KEY_HEADER,
+    filter_api_keys,
+)
+
 TESTS_DIR = Path(__file__).parent
 CASSETTES_DIR = TESTS_DIR / "cassettes"
 
@@ -18,24 +26,17 @@ def _load_env() -> None:
     load_dotenv()
 
 
-OPENAI_API_KEY_HEADER = "authorization"
-ANTHROPIC_API_KEY_HEADER = "x-api-key"
-CROSSREF_HEADER_KEY = "Crossref-Plus-API-Token"
-SEMANTIC_SCHOLAR_HEADER_KEY = "x-api-key"
-# SEE: https://github.com/kevin1024/vcrpy/blob/v6.0.1/vcr/config.py#L43
-VCR_DEFAULT_MATCH_ON = "method", "scheme", "host", "port", "path", "query"
-
-
 @pytest.fixture(scope="session", name="vcr_config")
 def fixture_vcr_config() -> dict[str, Any]:
     return {
         "filter_headers": [
-            CROSSREF_HEADER_KEY,
-            SEMANTIC_SCHOLAR_HEADER_KEY,
+            CROSSREF_KEY_HEADER,
+            SEMANTIC_SCHOLAR_KEY_HEADER,
             OPENAI_API_KEY_HEADER,
             ANTHROPIC_API_KEY_HEADER,
             "cookie",
         ],
+        "before_record_request": filter_api_keys,
         "record_mode": "once",
         "allow_playback_repeats": True,
         "cassette_library_dir": str(CASSETTES_DIR),

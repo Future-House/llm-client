@@ -9,8 +9,7 @@ from llmclient import cost_tracking_ctx
 from llmclient.cost_tracker import GLOBAL_COST_TRACKER
 from llmclient.embeddings import LiteLLMEmbeddingModel
 from llmclient.llms import CommonLLMNames, LiteLLMModel
-
-from .conftest import VCR_DEFAULT_MATCH_ON
+from llmclient.utils import VCR_DEFAULT_MATCH_ON
 
 
 @contextmanager

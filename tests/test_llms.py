@@ -17,7 +17,7 @@ from llmclient.llms import (
     validate_json_completion,
 )
 from llmclient.types import LLMResult
-from tests.conftest import VCR_DEFAULT_MATCH_ON
+from llmclient.utils import VCR_DEFAULT_MATCH_ON
 
 
 class TestLiteLLMModel:
@@ -116,7 +116,11 @@ class TestLiteLLMModel:
         assert len(result.prompt) == 2  # role + user messages
         assert result.prompt[1].content
         assert result.text
-        assert result.logprob is None or result.logprob <= 0
+        if llm.config["model_list"][0]["litellm_params"].get("logprobs"):
+            assert isinstance(result.logprob, float)
+            assert result.logprob <= 0
+        else:
+            assert result.logprob is None
         assert result.name == result_name
         result = await llm.call_single(messages)
         assert isinstance(result, LLMResult)
@@ -397,7 +401,11 @@ class TestMultipleCompletion:
             assert result.prompt_count > 0
             assert result.completion_count > 0
             assert result.cost > 0
-            assert result.logprob is None or result.logprob <= 0
+        if model.config["model_list"][0]["litellm_params"].get("logprobs"):
+            assert isinstance(result.logprob, float)
+            assert result.logprob <= 0
+        else:
+            assert result.logprob is None
 
     @pytest.mark.parametrize(
         "model_name",
@@ -628,6 +636,37 @@ class TestTooling:
         assert results[0].messages[0].content
         assert "16" in results[0].messages[0].content
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tools", "model_name"),
+        [
+            pytest.param([], CommonLLMNames.OPENAI_TEST.value, id="OpenAI-empty-tools"),
+            pytest.param(None, CommonLLMNames.OPENAI_TEST.value, id="OpenAI-no-tools"),
+            pytest.param(
+                [], CommonLLMNames.ANTHROPIC_TEST.value, id="Anthropic-empty-tools"
+            ),
+            pytest.param(
+                None, CommonLLMNames.ANTHROPIC_TEST.value, id="Anthropic-no-tools"
+            ),
+        ],
+    )
+    @pytest.mark.vcr
+    async def test_empty_tools(self, tools: list | None, model_name: str) -> None:
+        model = LiteLLMModel(name=model_name, config={"n": 1, "max_tokens": 56})
+
+        result = await model.call_single(
+            messages=[Message(content="What does 42 mean?")],
+            tools=tools,
+            tool_choice=LiteLLMModel.MODEL_CHOOSES_TOOL,
+        )
+
+        assert isinstance(result.messages, list)
+        if tools is None:
+            assert isinstance(result.messages[0], Message)
+        else:
+            assert isinstance(result.messages[0], ToolRequestMessage)
+            assert not result.messages[0].tool_calls
+
 
 def test_json_schema_validation() -> None:
     # Invalid JSON
@@ -685,8 +724,22 @@ async def test_deepseek_model():
     outputs: list[str] = []
     results = await llm.call(messages, callbacks=[outputs.append])
     for result in results:
-        # TODO: Litellm is not populating provider_specific_fields in streaming mode.
-        # https://github.com/BerriAI/litellm/issues/7942
-        # I'm keeping this test as a reminder to fix this.
-        # once the issue is fixed.
-        assert not result.reasoning_content
+        assert result.reasoning_content
+
+
+@pytest.mark.vcr
+@pytest.mark.asyncio
+async def test_openrouter_reasoning():
+    llm = LiteLLMModel(name="openrouter/deepseek/deepseek-r1", config={"n": 1})
+    messages = [
+        Message(content="What is the meaning of life?"),
+    ]
+    results = await llm.call(messages, include_reasoning=True)
+    assert results[0].reasoning_content
+
+    outputs: list[str] = []
+    with pytest.raises(
+        NotImplementedError,
+        match=r"Reasoning with OpenRouter via `include_reasoning` is not supported in streaming mode.*",
+    ):
+        await llm.call(messages, include_reasoning=True, callbacks=[outputs.append])

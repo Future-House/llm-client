@@ -96,17 +96,17 @@ def sum_logprobs(choice: litellm.utils.Choices | list[float]) -> float | None:
         The sum of the log probabilities of the choice.
     """
     if isinstance(choice, litellm.utils.Choices):
-        try:
-            logprob_obj = choice.logprobs
-        except AttributeError:
+        logprob_obj = getattr(choice, "logprobs", None)
+        if not logprob_obj:
             return None
-        if isinstance(logprob_obj, dict):
-            if logprob_obj.get("content"):
-                return sum(
-                    logprob_info["logprob"] for logprob_info in logprob_obj["content"]
-                )
-        elif choice.logprobs.content:
-            return sum(logprob_info.logprob for logprob_info in choice.logprobs.content)
+
+        if isinstance(
+            logprob_obj, dict | litellm.types.utils.ChoiceLogprobs
+        ) and logprob_obj.get("content", None):
+            return sum(
+                logprob_info["logprob"] for logprob_info in logprob_obj["content"]
+            )
+
     elif isinstance(choice, list):
         return sum(choice)
     return None
@@ -260,6 +260,8 @@ class LLMModel(ABC, BaseModel):
                     if isinstance(tool_choice, Tool)
                     else tool_choice
                 )
+        else:
+            chat_kwargs["tools"] = tools  # Allows for empty tools list
 
         # deal with specifying output type
         if isinstance(output_type, Mapping):  # Use structured outputs
@@ -561,6 +563,12 @@ class LiteLLMModel(LLMModel):
 
     @rate_limited
     async def acompletion(self, messages: list[Message], **kwargs) -> list[LLMResult]:
+        tools = kwargs.get("tools")
+        if not tools:
+            # OpenAI, Anthropic and pottentially other LLM providers
+            # don't allow empty tool_calls lists, so remove empty
+            kwargs.pop("tools", None)
+
         # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
         prompts = cast(
             list[litellm.types.llms.openai.AllMessageValues],
@@ -574,8 +582,10 @@ class LiteLLMModel(LLMModel):
         # We are not streaming here, so we can cast to list[litellm.utils.Choices]
         choices = cast(list[litellm.utils.Choices], completions.choices)
         for completion in choices:
-            if completion.finish_reason == "tool_calls" or getattr(
-                completion.message, "tool_calls", None
+            if (
+                tools is not None  # Allows for empty tools list
+                or completion.finish_reason == "tool_calls"
+                or (getattr(completion.message, "tool_calls", None) is not None)
             ):
                 serialized_message = completion.message.model_dump()
                 serialized_message["tool_calls"] = (
@@ -588,12 +598,22 @@ class LiteLLMModel(LLMModel):
                 output_messages = [Message(**completion.message.model_dump())]
 
             reasoning_content = None
-            if hasattr(completion.message, "provider_specific_fields"):
+            if (
+                hasattr(completion.message, "provider_specific_fields")
+                and completion.message.provider_specific_fields is not None
+            ):
+                # NOTE: DeepSeek's reasoning was added in:
+                # https://github.com/BerriAI/litellm/issues/7877
                 provider_specific_fields = completion.message.provider_specific_fields
                 if isinstance(provider_specific_fields, dict):
                     reasoning_content = provider_specific_fields.get(
-                        "reasoning_content", None
+                        "reasoning_content"
                     )
+            elif hasattr(completion.message, "reasoning"):
+                # OpenRouter's reasoning:
+                # https://github.com/BerriAI/litellm/issues/8130
+                # https://openrouter.ai/docs/api-reference/parameters#include-reasoning
+                reasoning_content = completion.message.reasoning
 
             results.append(
                 LLMResult(
@@ -614,22 +634,35 @@ class LiteLLMModel(LLMModel):
     async def acompletion_iter(
         self, messages: list[Message], **kwargs
     ) -> AsyncIterable[LLMResult]:
+        if kwargs.get("include_reasoning"):
+            raise NotImplementedError(
+                "Reasoning with OpenRouter via `include_reasoning` is not supported in streaming mode."
+                "https://github.com/BerriAI/litellm/issues/8631"
+                "Consider `model=deepseek/deepseek-r1` instead."
+            )
         # cast is necessary for LiteLLM typing bug: https://github.com/BerriAI/litellm/issues/7641
         prompts = cast(
             list[litellm.types.llms.openai.AllMessageValues],
             [m.model_dump(by_alias=True) for m in messages if m.content],
         )
+        stream_options = {
+            "include_usage": True,
+        }
+        if kwargs.get("include_reasoning"):
+            stream_options["include_reasoning"] = True
+
         stream_completions = await track_costs_iter(self.router.acompletion)(
             self.name,
             prompts,
             stream=True,
-            stream_options={"include_usage": True},
+            stream_options=stream_options,
             **kwargs,
         )
         start_clock = asyncio.get_running_loop().time()
         outputs = []
         logprobs = []
         role = None
+        reasoning_content = []
         async for completion in stream_completions:
             choice = completion.choices[0]
             delta = choice.delta
@@ -637,10 +670,10 @@ class LiteLLMModel(LLMModel):
                 logprobs.append(choice.logprobs.content[0].logprob or 0)
             outputs.append(delta.content or "")
             role = delta.role or role
-            # NOTE: litellm is not populating provider_specific_fields in streaming mode.
-            # TODO: Get reasoning_content when this issue is fixed
-            # https://github.com/BerriAI/litellm/issues/7942
-
+            if hasattr(delta, "reasoning_content"):
+                # NOTE: DeepSeek's reasoning was added in:
+                # https://github.com/BerriAI/litellm/issues/7877
+                reasoning_content.append(delta.reasoning_content or "")
         text = "".join(outputs)
         result = LLMResult(
             model=self.name,
@@ -648,6 +681,7 @@ class LiteLLMModel(LLMModel):
             prompt=messages,
             messages=[Message(role=role, content=text)],
             logprob=sum_logprobs(logprobs),
+            reasoning_content="".join(reasoning_content),
         )
 
         if text:
