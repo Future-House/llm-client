@@ -4,7 +4,7 @@
 
 # llm-client
 
-A Python library for interacting with Large Language Models (LLMs) through a unified interface.
+A Python library for interacting with Large Language Models (LLMs) through an unified interface.
 
 
 ## Installation
@@ -26,7 +26,8 @@ messages = [
     Message(content="What is the meaning of life?"),
 ]
 
-completions = await llm.call(messages)
+completion = await llm.call_single(messages)
+assert completion.text == "42"
 ```
 
 ## Documentation
@@ -34,10 +35,13 @@ completions = await llm.call(messages)
 ### LLMs
 
 An LLM is a class that inherits from `LLMModel` and implements the following methods:
-- `acompletion`
-- `acompletion_iter`
+- `async acompletion(messages: list[Message], **kwargs) -> list[LLMResult]`
+- `async acompletion_iter(messages: list[Message], **kwargs) -> AsyncIterator[LLMResult]`
 
-These methos are used by the base class `LLMModel` to implement the LLM interface.
+These methods are used by the base class `LLMModel` to implement the LLM interface.
+Because `LLMModel` is an abstract class, it doesn't depend on any specific LLM provider. All the connection with the provider is done in the subclasses using `acompletion` and `acompletion_iter` as interfaces.
+
+Because these are the only methods that communicate with the choosen LLM provider, we use an abstraction [LLMResult](https://github.com/Future-House/llm-client/blob/main/llmclient/types.py#L35) to hold the results of the LLM call.
 
 #### LLMModel
 
