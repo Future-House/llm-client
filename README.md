@@ -4,7 +4,7 @@
 
 # llm-client
 
-> Note: The `llmclient` repository is now deprecated. We have migrated all development and maintenance to a new package, `fhlmi`, which is part of the `ldp` repository.
+> Note: The `llmclient` repository is now deprecated. We have migrated all development and maintenance to a new package, `lmi`, which is part of the `ldp` repository.
 >
 > LMI Package: [https://github.com/Future-House/ldp/tree/main/lmi](https://github.com/Future-House/ldp/tree/main/lmi)
 >
